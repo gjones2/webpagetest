@@ -2,11 +2,12 @@
 header('Content-disposition: attachment; filename=filmstrip.png');
 header ("Content-type: image/png");
 
+require_once __DIR__ . '/../include/TestPaths.php';
 chdir('..');
 include 'common.inc';
 require_once('page_data.inc');
 require_once('draw.inc');
-include 'video/filmstrip.inc.php';  // include the commpn php shared across the filmstrip code
+include 'video/filmstrip.inc.php';  // include the common PHP shared across the filmstrip code
 
 $colMargin = 5;
 $rowMargin = 5;
@@ -139,6 +140,8 @@ foreach( $tests as &$test ) {
     }
     $frameCount = 0;
     $ms = 0;
+    $localPaths = new TestPaths(GetTestPath($test['id']), $test['run'], $test['cached'], $test['step']);
+    $videoDir = $localPaths->videoDir();
     while( $ms < $filmstrip_end_time ) {
         $ms = $frameCount * $interval;
         $frameCount++;
@@ -158,7 +161,7 @@ foreach( $tests as &$test ) {
             $cached = '';
             if( $test['cached'] )
                 $cached = '_cached';
-            $imgPath = GetTestPath($test['id']) . "/video_{$test['run']}$cached/$path";
+            $imgPath = $videoDir . "/" . $path;
             if( $lastThumb != $path || !$thumb ) {
                 if( $lastThumb != $path )
                     $border = $colChanged;
@@ -177,7 +180,7 @@ foreach( $tests as &$test ) {
                     imagedestroy($tmp);
                 }
             }
-            
+
             // draw the thumbnail
             $left += $colMargin;
             $width = imagesx($thumb);
@@ -186,11 +189,11 @@ foreach( $tests as &$test ) {
                 imagefilledrectangle($im, $left - 2 + $padding, $top - 2, $left + imagesx($thumb) + 2 + $padding, $top + imagesy($thumb) + 2, $border);
             imagecopy($im, $thumb, $left + $padding, $top, 0, 0, $width, imagesy($thumb));
             $left += $columnWidth + $colMargin;
-            
+
             $lastThumb = $path;
         }
     }
-    
+
     $top += $test['video']['thumbHeight'] + $rowMargin;
 }
 

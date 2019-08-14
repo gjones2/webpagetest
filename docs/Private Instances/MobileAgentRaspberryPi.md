@@ -14,7 +14,7 @@ It is worth noting that these instructions may not be the BEST way to configure 
 	- [These](http://www.amazon.com/Rankie%C2%AE-Premium-Charging-Samsung-Motorola/dp/B00UFG5GVM?ie=UTF8&psc=1&redirect=true&ref_=oh_aui_detailpage_o06_s00) have worked well on the public instance
 - Ethernet Cable (Recommended)
 	- Assumes the Pi will be hard-wired which is what is detailed in this doc.  The Pi 3 supports WiFi as well but that configuration is not documented (and eliminates the option to reverse-tether the phone which provides consistency improvements)
-	- [This](http://www.amazon.com/Hexagon-Network-Ethernet-Internet-Connectors/dp/B00VZXS008?ie=UTF8&psc=1&redirect=true&ref_=oh_aui_detailpage_o08_s01) is the cable used on the public instance devices, mostly because they take up less space but any working cable is fine.
+	- [This](https://www.amazon.com/Hexagon-Network-Ethernet-Shielded-Connectors/dp/B00WSKQ5ZO) is the cable used on the public instance devices, mostly because they take up less space but any working cable is fine.
 - Power Supply (Optional)
 	- To save space when deploying multiple devices the public instance uses [10-way USB power chargers](http://www.amazon.com/Anker-10-Port-Charger-Multi-Port-PowerPort/dp/B00YRYS4T4?ie=UTF8&psc=1&redirect=true&ref_=oh_aui_detailpage_o09_s00)
 - Switch (Optional)
@@ -67,6 +67,22 @@ For the initial setup you will also need a USB keyboard and monitor with HDMI in
 	- Save and exit (Ctrl-O, Ctrl-X)
 	- ```sudo dphys-swapfile setup```
 	- ```sudo dphys-swapfile swapon```
+20. Configure watchdog to automatically reboot on hang (optional)
+	- ```echo "bcm2835_wdt" | sudo tee -a /etc/modules```
+	- ```sudo apt-get install watchdog```
+	- ```sudo update-rc.d watchdog defaults```
+	- ```sudo nano /etc/watchdog.conf```
+		- uncomment "watchdog-device =" line
+		- optionally, configure a load limit (max-load-15 = 80 should cover EXTREME cases)
+	- ```sudo modprobe bcm2835_wdt```
+	- ```sudo nano /etc/systemd/system.conf```
+		- uncomment "RuntimeWatchdogSec=" line and set the time to 10
+		- uncomment "ShutdownWatchdogSec=10min"
+	- ```sudo nano /lib/systemd/system/watchdog.service```
+		- add ```WantedBy=multi-user.target``` below [Install]
+	- ```sudo systemctl start watchdog```
+	- ```sudo systemctl status watchdog```
+	- ```sudo systemctl enable watchdog```
 20. Configure it to reboot on out-of-memory and optionally disable IPv6
 	- ```sudo nano /etc/sysctl.conf```
 	- Add the reboot on OOM settings to the end
@@ -77,6 +93,11 @@ For the initial setup you will also need a USB keyboard and monitor with HDMI in
 		- ```net.ipv6.conf.default.disable_ipv6 = 1```
 		- ```net.ipv6.conf.lo.disable_ipv6 = 1```
 	- Save and exit
+21. Disable hardware checksum offload (at least if using reverse-tethering). There is a kernel bug that reports tons of checksum errors for bridged interfaces.
+        - ```sudo apt-get install ethtool```
+	- ```sudo nano /etc/ec.local```
+	- Add the config before the ```exit 0``` at the end of the file
+		- ```ethtool --offload eth0 rx off tx off```
 
 ## Install Software Dependencies ##
 The WebPageTest node agent requires NodeJS, Python, imagemagick and ffmpeg as well as the pillow and psutil python modules.  Most of these can be installed directly but ffmpeg is not currently available through apt so it needs to be built directly on the Pi.
@@ -86,7 +107,7 @@ The WebPageTest node agent requires NodeJS, Python, imagemagick and ffmpeg as we
 	- ```sudo apt-get upgrade```
 	- ```sudo apt-get -y --force-yes install git screen libtiff5-dev libjpeg-dev zlib1g-dev libfreetype6-dev liblcms2-dev libwebp-dev tcl8.6-dev tk8.6-dev python-tk python-pip libtiff5-dev libjpeg-dev zlib1g-dev libfreetype6-dev liblcms2-dev libwebp-dev tcl8.6-dev tk8.6-dev python-tk python-dev libavutil-dev libmp3lame-dev libx264-dev yasm git autoconf automake build-essential libass-dev libfreetype6-dev libtheora-dev libtool libvorbis-dev pkg-config texi2html zlib1g-dev libtext-unidecode-perl android-tools-adb imagemagick python-numpy python-scipy```
 2. Install the python modules:
-	- ```sudo pip install psutil pillow pyssim```
+	- ```sudo pip install psutil pillow pyssim ujson```
 	- Be patient, if it needs to build pyssim and the dependencies this can take upwards of an hour
 3. Download, build and install ffmpeg
 	- ```cd ~```
@@ -98,9 +119,11 @@ The WebPageTest node agent requires NodeJS, Python, imagemagick and ffmpeg as we
 	- ```sudo make install```
 	- ```cd ~```
 	- ```rm -rf ffmpeg```
-4. Install NodeJS 4.x
-	- ```curl -sL https://deb.nodesource.com/setup_4.x | sudo -E bash -```
+4. Install NodeJS 7.x
+	- ```curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -```
 	- ```sudo apt-get install -y nodejs```
+5. Install lighthouse
+	- ```sudo npm install -g lighthouse```
 
 ## Configure adb access ##
 By default, USB-connected devices are only available to the root user.  In order to access adb from the user you created you need to explicitly add the device ID's to a configuration file.

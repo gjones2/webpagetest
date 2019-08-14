@@ -2,10 +2,16 @@
 chdir('..');
 include 'common.inc';
 RestoreTest($id);
-$traceFile = "$testPath/$run{$cachedText}_trace.json.gz";
-if (!is_file($traceFile) && is_file("$testPath/$run{$cachedText}_trace.json")) {
-  if (gz_compress("$testPath/$run{$cachedText}_trace.json")) {
-    unlink("$testPath/$run{$cachedText}_trace.json");
+if ($_REQUEST['run'] == 'lighthouse')
+  $fileBase = 'lighthouse';
+else{
+  $stepSuffix = $step > 1 ? ("_" . $step) : "";
+  $fileBase = "$run{$cachedText}{$stepSuffix}";
+}
+$traceFile = "$testPath/{$fileBase}_trace.json.gz";
+if (!is_file($traceFile) && is_file("$testPath/{$fileBase}_trace.json")) {
+  if (gz_compress("$testPath/{$fileBase}_trace.json")) {
+    unlink("$testPath/{$fileBase}_trace.json");
   }
 }
 $preamble = __DIR__ . "/trace-viewer/preamble.html";

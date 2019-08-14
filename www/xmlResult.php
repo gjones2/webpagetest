@@ -16,7 +16,6 @@ require_once('common.inc');
 require_once('page_data.inc');
 require_once('testStatus.inc');
 require_once('video/visualProgress.inc.php');
-require_once('domains.inc');
 require_once('breakdown.inc');
 require_once('devtools.inc.php');
 require_once('archive.inc');
@@ -40,7 +39,7 @@ else
     $status = GetTestStatus($id);
     if( isset($test['test']['completeTime']) )
     {
-        $protocol = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_SERVER['HTTP_SSL']) && $_SERVER['HTTP_SSL'] == 'On')) ? 'https' : 'http';
+        $protocol = getUrlProtocol();
         $host  = $_SERVER['HTTP_HOST'];
         $uri   = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
         $path = substr($testPath, 1);
@@ -167,7 +166,7 @@ function BatchResult($id, $testPath)
         echo "<statusText>Ok</statusText>";
         if( strlen($_REQUEST['r']) )
             echo "<requestId>{$_REQUEST['r']}</requestId>";
-        $protocol = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_SERVER['HTTP_SSL']) && $_SERVER['HTTP_SSL'] == 'On')) ? 'https' : 'http';
+        $protocol = getUrlProtocol();
         $host  = $_SERVER['HTTP_HOST'];
         $uri   = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
 

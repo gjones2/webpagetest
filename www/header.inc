@@ -2,13 +2,11 @@
 require_once __DIR__ . '/page_data.inc';
 require_once __DIR__ . '/include/TestInfo.php';
 require_once __DIR__ . '/include/TestResults.php';
+require_once __DIR__ . '/include/TestRunResults.php';
 
 if(isset($testPath) ) {
-  $options = null;
-  if (array_key_exists('end', $_REQUEST))
-    $options = array('end' => $_REQUEST['end']);
   $testInfo = TestInfo::fromFiles($testPath);
-  $testResults = TestResults::fromFiles($testInfo, null, $options);
+  $testResults = TestResults::fromFiles($testInfo);
 }
 if (isset($testResults)) {
   $adultKeywords = array();
@@ -23,18 +21,18 @@ if (isset($testResults)) {
 
 if( $supportsAuth && !defined('EMBED') )
 {
-    echo '<div id="wptAuthBar">';
+    echo '<div id="wptAuthBar" class="page">';
     if( isset($user) )
     {
         $logoutUrl = '/forums/member.php?action=logout';
         if( isset($mybb) && strlen($mybb->user['logoutkey']) )
             $logoutUrl .= '&logoutkey=' . $mybb->user['logoutkey'];
-        echo "Welcome, $user &nbsp;|&nbsp; <a href=\"$logoutUrl\">Logout</a>";
+        echo "Welcome, " . htmlspecialchars($user) . " &nbsp;|&nbsp; <a href=\"$logoutUrl\">Logout</a>";
     }
     else if( isset($_COOKIE['google_email']) && isset($_COOKIE['google_id']) )
 	  {
         $logoutUrl = 'javascript:ClearOAuthCookies();';
-        $google_email = $_COOKIE['google_email'];
+        $google_email = htmlspecialchars($_COOKIE['google_email']);
         echo "Welcome, $google_email &nbsp;|&nbsp; <a href=\"$logoutUrl\">Logout</a>";
     }
     else
@@ -53,7 +51,7 @@ if( $supportsAuth && !defined('EMBED') )
 if (!defined('EMBED')) {
 ?>
 
-<div id="header">
+<div id="header" class="page">
     <h1 class="logo"><a href="/">WebPageTest</a></h1>
     <div class="headerAd">
     <?php
@@ -63,11 +61,11 @@ if (!defined('EMBED')) {
             $testLoc = null;
             if( isset($test) && isset($test['test']['loc']) )
                 $testLoc = $test['test']['loc'];
-            
-            if( strpos($testLoc, '..') === false && strpos($testLoc, '/') === false && strpos($testLoc, '\\') === false && 
+
+            if( strpos($testLoc, '..') === false && strpos($testLoc, '/') === false && strpos($testLoc, '\\') === false &&
                 isset($testLoc) && strlen($testLoc) && is_file("./custom/$testLoc/headerAd.inc") ) {
                 include("./custom/$testLoc/headerAd.inc");
-            } elseif( is_file('./ads/header.inc') && (!array_key_exists('HTTP_SSL', $_SERVER) || $_SERVER['HTTP_SSL'] != 'On') ) {
+            } elseif(is_file('./ads/header.inc')) {
                 include('./ads/header.inc');
             }
         }
@@ -75,7 +73,7 @@ if (!defined('EMBED')) {
     </div>
 </div>
 
-<div id="nav_bkg"><ul id="nav" class="cufon-dincond_black"><?php
+<div id="nav_bkg"><div id="nav_bar"><div class="page"><ul id="nav" class="cufon-dincond_black"><?php
         if ($id) {
             $resultUrl = "/results.php?test=$id";
             if (array_key_exists('end', $_REQUEST))
@@ -96,15 +94,17 @@ if (!defined('EMBED')) {
                 $navTabs['Test Result'] = isset($resultUrl) ? $resultUrl : '';
             }
 
-            $navTabs['Test History'] = FRIENDLY_URLS ? '/testlog/1/' : '/testlog.php?days=1';
+            if (empty($settings['disableTestlog'])) {
+              $navTabs['Test History'] = FRIENDLY_URLS ? '/testlog/1/' : '/testlog.php?days=1';
+            }
 
             if (is_dir('wptmonitor')) {
                 $navTabs['Monitor'] = '/wptmonitor/';
             }
-            if (is_dir('forums') && !$settings['disableMybb']) {
+            if (is_dir('forums') && (!isset($settings['disableMybb']) || !$settings['disableMybb'])) {
                 $navTabs['Forums'] = '/forums/';
             }
-            $navTabs['Documentation'] = 'http://sites.google.com/a/webpagetest.org/docs/';
+            $navTabs['Documentation'] = 'https://sites.google.com/a/webpagetest.org/docs/';
             $navTabs['About'] = FRIENDLY_URLS ? '/about' : '/about.php';
         }
         foreach ($navTabs as $tabName => $tabUrl) {
@@ -125,7 +125,7 @@ if (!defined('EMBED')) {
         }
 ?></ul>
 
-</div>
+</div></div></div>
 
 <?php
 if (!defined('BARE_UI') && isset($settings['alert']) && strlen($settings['alert'])) {
@@ -135,25 +135,25 @@ if (!defined('BARE_UI') && isset($settings['alert']) && strlen($settings['alert'
 }
 } // EMBED
 ?>
-    
+
 <div id="main">
     <div class="level_2">
         <div class="content-wrap">
             <div class="content">
 
-            
+
 <?php
 //If we're looking at a test result, include the extra header section and sub-menu
 if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
 {
     // make sure the test is actually complete
-    if( (isset($test['test']) && isset($test['test']['completeTime'])) )
+    if(isset($test['test']['completeTime']))
     {
         if (!isset($testResults) || !isset($testInfo)) {
           $testInfo = TestInfo::fromFiles($testPath);
           $testResults = TestResults::fromFiles($testInfo);
         }
-            
+
         $gradeRun = 1;
         if( array_key_exists('run', $_GET) && $_GET["run"] )
             $gradeRun = intval($_GET["run"]);
@@ -164,6 +164,7 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
                 $gradeRun = $medianRun;
         }
         $gradeRunResults = $testResults->getRunResult($gradeRun, false);
+        $firstRunResults = $testResults->getRunResult(1, false);
 
         echo '<div id="header_container">';
         // Only include optimization data for normal tests
@@ -172,18 +173,12 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
           echo '<div id="optimization">';
               echo '<div id="optimization_header">';
               $localPaths = new TestPaths($testPath, $gradeRun, false);
-              $urlGenerator = UrlGenerator::create(FRIENDLY_URLS, "", $id, $gradeRun, false);
-              $pageSpeedScore = $gradeRunResults->averagePageSpeedScore();
-              if ($pageSpeedScore !== null) {
-                $pageSpeedUrl = $urlGenerator->resultPage("pagespeed");
-                $pageSpeedVersion = $gradeRunResults->getPageSpeedVersion();
-                echo "<span id=\"headerPagespeedScore\"><a href=\"$pageSpeedUrl\">PageSpeed $pageSpeedVersion Score</a>: <b>$pageSpeedScore/100</b></span>";
-              }
-              
+              $urlGenerator = UrlGenerator::create(false, "", $id, $gradeRun, false);
+
               echo "<div id=\"opthelp\"><a href=\"https://sites.google.com/a/webpagetest.org/docs/other-resources/optimization-resources\" title=\"Optimization Resources\" target=\"_blank\">Need help improving?</a></div>\n";
               echo '</div>';
               echo '<div id="grades">';
-                  $grades = GetGrades($testInfo, $gradeRunResults);
+                  $grades = GetGrades($testInfo, $gradeRunResults, $firstRunResults);
                   if( count($grades) )
                   {
                       $smaller = '';
@@ -191,8 +186,14 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
                         $smaller = ' smaller';
                       echo "<ul class=\"grades$smaller\">";
                       $optlink = $urlGenerator->resultPage("performance_optimization");
-                      foreach( $grades as $check => &$grade )
-                          echo "<li class=\"$check\"><a href=\"$optlink#$check\"><h2 class=\"{$grade['class']}\">{$grade['grade']}</h2></a>{$grade['description']}</li>";
+                      foreach( $grades as $check => &$grade ) {
+                          if ($check == 'lighthouse') {
+                            $lighthouse = $urlGenerator->resultPage("lighthouse");
+                            echo "<li class=\"$check\"><a href=\"$lighthouse\"><h2 class=\"{$grade['class']}\">{$grade['grade']}</h2></a>{$grade['description']}</li>";
+                          }else {
+                            echo "<li class=\"$check\"><a href=\"$optlink#$check\"><h2 class=\"{$grade['class']}\">{$grade['grade']}</h2></a>{$grade['description']}</li>";
+                          }
+                      }
                       echo '</ul>';
                   }
               echo '</div>';
@@ -200,13 +201,13 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
         } else {
           $data_class = ' class="header_data_full"';
         }
-        
+
         echo "<div id=\"header_data\"$data_class>";
         // for multistep, link the first URL and show additional text. Otherwise take the test URL
-        $isMultistep = $gradeRunResults->countSteps() > 1;
-        $showUrl = $isMultistep ? $gradeRunResults->getStepResult(1)->getUrl() : $url;
+        $numSteps = $gradeRunResults->countSteps();
+        $showUrl = $numSteps > 1 ? $gradeRunResults->getStepResult(1)->getUrl() : $url;
         $shortUrl = str_replace('http://', '',  FitText($showUrl, 180));
-        $shortUrl = $isMultistep ? ($shortUrl . " (multiple steps)") : $shortUrl;
+        $shortUrl = $numSteps > 1 ? ($shortUrl . " ($numSteps steps)") : $shortUrl;
             echo "<h2 class=\"alternate cufon-dincond_regular\">Web Page Performance Test for<br>";
             if ($settings['nolinks']) {
                 echo "<span class=\"medium colored\">$shortUrl</span>";
@@ -214,7 +215,7 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
                 echo "<a class=\"url cufon-dincond_black\"  rel=\"nofollow\" title=\"$showUrl\" href=\"$showUrl\">$shortUrl</a>";
             }
             echo "</h2>";
-            
+
             echo "<p class=\"heading_details\"><strong>From:</strong> {$test['test']['location']}";
             if (isset($test['testinfo']['mobile']) && $test['testinfo']['mobile'] === 1)
             {
@@ -233,13 +234,13 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
                 echo "<span class=\"jsdate\" date=\"$timeStr\">$time</span><br>\n";
             }
 
-            if( $dom ) 
+            if( $dom )
                 echo 'DOM Element: <b>' . $dom . '</b><br>';
             if( array_key_exists('authenticated', $test['test']) && (int)$test['test']['authenticated'] == 1)
                 echo '<b>Authenticated: ' . $login . '</b><br>';
             if( (int)$test['test']['connections'] !== 0)
                  echo '<b>' . $test['test']['connections'] . ' Browser connections</b><br>';
-            if( array_key_exists('script', $test['test']) && strlen($test['test']['script']) ) 
+            if( array_key_exists('script', $test['test']) && strlen($test['test']['script']) )
                 echo '<b>Scripted test</b><br>';
             if( strlen($blockString) )
                 echo "Blocked: <b>$blockString</b><br>";
@@ -248,8 +249,8 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
                 $benchmark = $test['testinfo']['benchmark'];
                 if (isset($test['testinfo']['epoch'])) {
                     $epochStr = $test['testinfo']['epoch'];
-                    $epoch = (int)$epochStr + ($tz_offset * 60);
-                    $epochTime = strftime('%x %X', $epoch);
+                    $epoch = (int)$epochStr;
+                    $epochTime = strftime('%x %X', $epoch + ($tz_offset * 60));
                     $benchmarkStr = "$benchmark - <span class=\"jsdate\" date=\"$epochStr\">$epochTime</span>";
                 } else {
                     $benchmarkStr = $benchmark;
@@ -284,7 +285,7 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
             }
         echo '</div>';
         echo '</div>';
-        
+
         echo '<div id="test_results-container">';
 
         echo '<div id="test-1" class="test_results">';
@@ -313,8 +314,8 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
           $tabs['Processing Breakdown'] = $menuStandardUrlGenerator->resultPage("breakdownTimeline");
         }
 
-        if( !isset($test['testinfo']) || !$test['testinfo']['noimages'] )
-            $tabs['Screen Shot'] = $menuUrlGenerator->resultPage("screen_shot", $endParams);
+        if( !isset($test['testinfo']) || !isset($test['testinfo']['noimages']) || !$test['testinfo']['noimages'] )
+            $tabs['Screenshot'] = $menuUrlGenerator->resultPage("screen_shot", $endParams);
         //$tabs['More Checks'] = "/moreChecks.php?test=$id";
 
         foreach( $tabs as $tabName => $tabUrl )
@@ -329,7 +330,25 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
                 echo "<li$current><a href=\"$tabUrl\">$tabName</a></li>";
             }
         }
-    
+
+        // Add the "Image Analysis" link
+        if (isset($id) && strlen($id)) {
+          $tabUrl = GetSetting('image_analysis');
+          if ($tabUrl) {
+            $tabUrl = str_replace('{test id}', $id, $tabUrl);
+            echo "<li><a href=\"$tabUrl\" title=\"Cloudinary Image Analysis (external) - Opens in a new window.\" target=\"_blank\" rel=\"noopener\" style=\"padding-right: 2px;\">Image Analysis<img src=\"/images/external_header.svg\" style=\"padding-top: 4px; float: right;\"></a></li>";
+          }
+        }
+
+        // Add the "Request Map" link
+        if (isset($id) && strlen($id)) {
+          $tabUrl = GetSetting('request_map');
+          if ($tabUrl) {
+            $tabUrl = str_replace('{test id}', $id, $tabUrl);
+            echo "<li><a href=\"$tabUrl\" title=\"Request Map (external) - Opens in a new window.\" target=\"_blank\" rel=\"noopener\" style=\"padding-right: 2px;\">Request Map<img src=\"/images/external_header.svg\" style=\"padding-top: 4px; float: right;\"></a></li>";
+          }
+        }
+
         echo '</ul>';
         echo '<div class="test_results-content">';
     }
@@ -358,15 +377,31 @@ if( !strcasecmp('Test Result', $tab) || (array_key_exists('compare', $_COOKIE) &
 * @param TestRunResults $testRunResults Run results to compute the grades for
 * @return array An array with the different grades
 */
-function GetGrades($testInfo, $testRunResults)
+function GetGrades($testInfo, $testRunResults, $firstRunResults)
 {
     $grades = array();
+    $infoArray = $testInfo->getInfoArray();
+    if (isset($firstRunResults))
+      $lighthouse = $firstRunResults->getLighthouseScore();
+    if (isset($lighthouse)) {
+      $class = 'F';
+      if ($lighthouse > 90)
+        $class = 'A';
+      elseif ($lighthouse > 80)
+        $class = 'B';
+      elseif ($lighthouse > 70)
+        $class = 'C';
+      elseif ($lighthouse > 60)
+        $class = 'D';
+      $grades['lighthouse'] = array( 'class' => $class, 'grade' => $lighthouse, 'description' => 'Lighthouse PWA Score');
+    } elseif (isset($infoArray['lighthouse']) && $infoArray['lighthouse']) {
+      $grades['lighthouse'] = array( 'class' => 'F', 'grade' => '?', 'description' => 'Lighthouse PWA Score');
+    }
     if ($testRunResults->isOptimizationChecked()) {
         require_once('optimization_detail.inc.php');
 
-        $opt = getOptimizationGradesForRun($testRunResults);
-        $infoArray = $testInfo->getInfoArray();
-        if( $infoArray['view'] != 'simple' && $infoArray['view'] != 'pss' )
+        $opt = getOptimizationGradesForRun($testInfo, $testRunResults);
+        if( !isset($infoArray['view']) || ($infoArray['view'] != 'simple' && $infoArray['view'] != 'pss') )
             $grades['first_byte_time'] = array( 'class' => $opt['ttfb']['class'], 'grade' => $opt['ttfb']['grade'], 'description' => $opt['ttfb']['label']);
         $grades['keep_alive_enabled'] = array( 'class' => $opt['keep-alive']['class'], 'grade' => $opt['keep-alive']['grade'], 'description' => $opt['keep-alive']['label']);
         $grades['compress_text'] = array( 'class' => $opt['gzip']['class'], 'grade' => $opt['gzip']['grade'], 'description' => $opt['gzip']['label']);
@@ -376,7 +411,7 @@ function GetGrades($testInfo, $testRunResults)
         $grades['cache_static_content'] = array( 'class' => $opt['caching']['class'], 'grade' => $opt['caching']['grade'], 'description' => $opt['caching']['label']);
         $grades['use_of_cdn'] = array( 'class' => $opt['cdn']['class'], 'grade' => $opt['cdn']['grade'], 'description' => $opt['cdn']['label']);
     }
-    
+
     return $grades;
 }
 ?>

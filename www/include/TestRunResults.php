@@ -45,11 +45,11 @@ class TestRunResults {
    * @param array $options Options for loading the TestStepData
    * @return TestRunResults|null The initialized object or null if it failed
    */
-  public static function fromFiles($testInfo, $runNumber, $isCached, $fileHandler = null, $options = null) {
+  public static function fromFiles($testInfo, $runNumber, $isCached, $fileHandler = null) {
     $stepResults = array();
     $isValid = false;
     for ($stepNumber = 1; $stepNumber <= $testInfo->stepsInRun($runNumber); $stepNumber++) {
-      $stepResult = TestStepResult::fromFiles($testInfo, $runNumber, $isCached, $stepNumber, $fileHandler, $options);
+      $stepResult = TestStepResult::fromFiles($testInfo, $runNumber, $isCached, $stepNumber, $fileHandler);
       $stepResults[] = $stepResult;
       $isValid = $isValid || ($stepResult !== null);
     }
@@ -78,6 +78,18 @@ class TestRunResults {
   }
 
   /**
+   * @return bool True if there is at least one valid step, false otherwise
+   */
+  public function isValid() {
+    foreach ($this->getStepResults() as $stepResult) {
+      if ($stepResult->isValid()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * @param int $stepNum The step number to get the result for, starting from 1
    * @return TestStepResult Step result data
    */
@@ -86,6 +98,13 @@ class TestRunResults {
       return null;
     }
     return $this->stepResults[$stepNum - 1];
+  }
+
+  /**
+   * @return TestStepResult[] Step result data for all steps in order. Keys are *not* step number
+   */
+  public function getStepResults() {
+    return $this->stepResults;
   }
 
   /**
@@ -98,6 +117,13 @@ class TestRunResults {
       }
     }
     return true;
+  }
+
+  /**
+   * @return bool True if the run contains more than one step, false otherwise.
+   */
+  public function isMultistep() {
+    return $this->countSteps() > 1;
   }
 
   /**
@@ -215,7 +241,35 @@ class TestRunResults {
   }
 
   /**
-   * @return bool True if any step si optimization checked, false otherwise
+   * @param string $metric The metric to check for
+   * @return bool True if the metric is present in any step, false otherwise
+   */
+  public function hasValidMetric($metric) {
+    foreach ($this->stepResults as $stepResult) {
+      $value = $stepResult->getMetric($metric);
+      if (!empty($value)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * @param string $metric The metric to check for
+   * @return bool True if the metric is present and > 0 in any step, false otherwise
+   */
+  public function hasValidNonZeroMetric($metric) {
+    foreach ($this->stepResults as $stepResult) {
+      $value = $stepResult->getMetric($metric);
+      if (!empty($value) && $value > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * @return bool True if any step is  optimization-checked, false otherwise
    */
   public function isOptimizationChecked() {
     foreach ($this->stepResults as $stepResult) {
@@ -224,6 +278,20 @@ class TestRunResults {
       }
     }
     return false;
+  }
+
+  /**
+   * @return int lighthouse score
+   */
+  public function getLighthouseScore() {
+    $score = null;
+    foreach ($this->stepResults as $stepResult) {
+      $score = $stepResult->getMetric("lighthouse.ProgressiveWebApp");
+      if (isset($score)) {
+        return intval(($score * 100.0) + 0.5);
+      }
+    }
+    return $score;
   }
 
   public function hasBreakdownTimeline() {

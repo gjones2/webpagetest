@@ -8,7 +8,7 @@ $secret = '';
 $keys = parse_ini_file('./settings/keys.ini', true);
 if( $keys && isset($keys['server']) && isset($keys['server']['secret']) )
   $secret = trim($keys['server']['secret']);
-    
+
 $connectivity = parse_ini_file('./settings/connectivity.ini', true);
 $locations = LoadLocations();
 $loc = ParseLocations($locations);
@@ -19,27 +19,45 @@ if( array_key_exists('preview', $_GET) && strlen($_GET['preview']) && $_GET['pre
 // Put it into mod_pagespeed mode all the time
 $mps = true;
 
-$page_keywords = array('Comparison','Webpagetest','Website Speed Test','Page Speed');
+$page_keywords = array('Comparison','WebPageTest','Website Speed Test','Page Speed');
 $page_description = "Comparison Test$testLabel.";
 ?>
 
 <!DOCTYPE html>
 <html>
     <head>
-        <title>WebPagetest - Comparison Test</title>
+        <title>WebPageTest - Comparison Test</title>
         <?php $gaTemplate = 'PSS'; include ('head.inc'); ?>
     </head>
     <body>
         <div class="page">
             <?php
+            $siteKey = GetSetting("recaptcha_site_key", "");
+            if (!isset($uid) && !isset($user) && !isset($this_user) && strlen($siteKey)) {
+              echo "<script src=\"https://www.google.com/recaptcha/api.js\" async defer></script>\n";
+              ?>
+              <script>
+              function onRecaptchaSubmit(token) {
+                var form = document.getElementById("urlEntry");
+                if (PreparePSSTest(form)) {
+                  form.submit();
+                } else {
+                  grecaptcha.reset();
+                }
+              }
+              </script>
+              <?php
+            }
             $navTabs = array(   'New Comparison' => FRIENDLY_URLS ? '/compare' : '/pss.php' );
-            if( array_key_exists('pssid', $_GET) && strlen($_GET['pssid']) )
-                $navTabs['Test Result'] = FRIENDLY_URLS ? "/result/{$_GET['pssid']}/" : "/results.php?test={$_GET['pssid']}";
+            if( array_key_exists('pssid', $_GET) && strlen($_GET['pssid']) ) {
+                $pssid = htmlspecialchars($_GET['pssid']);
+                $navTabs['Test Result'] = FRIENDLY_URLS ? "/result/$pssid/" : "/results.php?test=$pssid";
+            }
             $tab = 'New Comparison';
             include 'header.inc';
             ?>
-            <form name="urlEntry" action="/runtest.php" method="POST" enctype="multipart/form-data" onsubmit="return PreparePSSTest(this)">
-            
+            <form name="urlEntry" id="urlEntry" action="/runtest.php" method="POST" enctype="multipart/form-data" onsubmit="return PreparePSSTest(this)">
+
             <input type="hidden" name="private" value="1">
             <input type="hidden" name="view" value="pss">
             <input type="hidden" name="label" value="">
@@ -80,20 +98,20 @@ $page_description = "Comparison Test$testLabel.";
             echo "<script>\nvar originalScript = \"$script\";\n</script>";
             ?>
             <input type="hidden" name="bulkurls" value="">
-            <input type="hidden" name="vo" value="<?php echo $owner;?>">
+            <input type="hidden" name="vo" value="<?php echo htmlspecialchars($owner);?>">
             <?php
             if( strlen($secret) ){
               $hashStr = $secret;
               $hashStr .= $_SERVER['HTTP_USER_AGENT'];
               $hashStr .= $owner;
-              
+
               $now = gmdate('c');
               echo "<input type=\"hidden\" name=\"vd\" value=\"$now\">\n";
               $hashStr .= $now;
-              
+
               $hmac = sha1($hashStr);
               echo "<input type=\"hidden\" name=\"vh\" value=\"$hmac\">\n";
-              
+
               if ($mps) {
                 echo '<h2 class="cufon-dincond_black"><small>Evaluate the impact of <a href="https://code.google.com/p/modpagespeed/">mod_pagespeed</a> (must be installed on the server)</small></h2>';
               } elseif ($preview) {
@@ -127,7 +145,7 @@ $page_description = "Comparison Test$testLabel.";
                                     $selected = '';
                                     if( $location['checked'] )
                                         $selected = 'selected';
-                                        
+
                                     if (array_key_exists('group', $location) && $location['group'] != $lastGroup) {
                                         if (isset($lastGroup))
                                             echo "</optgroup>";
@@ -248,8 +266,6 @@ $page_description = "Comparison Test$testLabel.";
                                 echo '<select name="backend" id="backend">';
                                 echo "<option value=\"prod\"$prodSelected>Default (Safe)</option>";
                                 echo "<option value=\"aggressive\"$aggressiveSelected>Aggressive</option>";
-                                if( !$supportsAuth || ($admin || strpos($_COOKIE['google_email'], '@google.com') !== false) )
-                                    echo '<option value="staging">Staging</option>';
                                 echo '</select>';
                             } else {
                                 echo "<input type=\"hidden\" name=\"backend\" id=\"backend\" value=\"prod\">\n";
@@ -265,12 +281,8 @@ $page_description = "Comparison Test$testLabel.";
                             echo "<input type=\"checkbox\" name=\"mobile\" id=\"mobile\" class=\"mobile\"$checked>";
                             ?>
                         </li>
-                        <li>
-                            <label for="wait">Expected Wait</label>
-                            <span id="wait"></span>
-                        </li>
                         <?php
-                        if( !$supportsAuth || ($admin || strpos($_COOKIE['google_email'], '@google.com') !== false) )
+                        if( !$supportsAuth || $admin )
                         {
                         ?>
                         <li>
@@ -289,7 +301,13 @@ $page_description = "Comparison Test$testLabel.";
             </div>
 
             <div id="start_test-container">
-                <p><input id="start_test-button" type="submit" name="submit" value="" class="start_test"></p>
+                <?php
+                if (strlen($siteKey)) {
+                  echo "<p><button data-sitekey=\"$siteKey\" data-callback='onRecaptchaSubmit' class=\"g-recaptcha start_test\"></button></p>";
+                } else {
+                  echo '<p><input type="submit" name="submit" value="" class="start_test"></p>';
+                }
+                ?>
             </div>
             <div class="cleared"><br></div>
 
@@ -315,7 +333,7 @@ $page_description = "Comparison Test$testLabel.";
                                 } else
                                     $lastGroup = null;
                             }
-                                
+
                             echo "<option value=\"{$location['name']}\" $selected>{$location['label']}</option>";
                         }
                         if (isset($lastGroup))
@@ -325,16 +343,16 @@ $page_description = "Comparison Test$testLabel.";
                     <input id="location-ok" type=button class="simplemodal-close" value="OK">
                 </p>
             </div>
-            
+
             </form>
 
             <?php
-            include('footer.inc'); 
+            include('footer.inc');
             ?>
         </div>
 
         <script type="text/javascript">
-        <?php 
+        <?php
             echo "var wptForgetSettings = true;\n";
             echo "var maxRuns = {$settings['maxruns']};\n";
             echo "var locations = " . json_encode($locations) . ";\n";
@@ -352,10 +370,10 @@ $page_description = "Comparison Test$testLabel.";
                 }
             }
             echo "var sponsors = " . json_encode($sponsors) . ";\n";
-           
+
         ?>
         </script>
-        <script type="text/javascript" src="<?php echo $GLOBALS['cdnPath']; ?>/js/test.js?v=<?php echo VER_JS_TEST;?>"></script> 
+        <script type="text/javascript" src="<?php echo $GLOBALS['cdnPath']; ?>/js/test.js?v=<?php echo VER_JS_TEST;?>"></script>
         <script type="text/javascript">
             wptStorage['testBrowser'] = 'Chrome';
             function PreparePSSTest(form)
@@ -368,7 +386,7 @@ $page_description = "Comparison Test$testLabel.";
                     return false;
                 }
                 if (url.match(/^https:\/\//i)) {
-                    alert( "Testing of secure (https) pages is not supported.\r\nPlease enter a non-secure page for testing." );
+                    alert( "Testing of secure (HTTPS) pages is not supported.\r\nPlease enter a non-secure page for testing." );
                     form.testurl.focus();
                     return false;
                 }
@@ -377,44 +395,44 @@ $page_description = "Comparison Test$testLabel.";
                     alert( "HTTPS sites are not currently supported" );
                     return false;
                 }
-                
+
                 form.label.value = 'PageSpeed Service Comparison for ' + url;
-                
+
                 if (form['mobile'] && !$("#morelocs").is(":visible")) {
                     if (form.mobile.checked) {
                         var loc = $('#connection').val();
                         if (loc.indexOf('.Cable') > 0) {
                             loc = loc.replace('.Cable', '.3G');
-                            $('#connection').val(loc); 
+                            $('#connection').val(loc);
                         }
                     }
                 }
-                
+
                 <?php
-                // build the psuedo batch-url list
+                // build the psuedo batch-URL list
                 if ($mps) {
                     echo 'var batch = "{test}\n'.
-                                      '{script}\n' . 
+                                      '{script}\n' .
                                       'label=mod_pagespeed Off\n' .
                                       'addHeader\tModPagespeed:off\n' .
-                                      'navigate\t" + url + "\n' . 
+                                      'navigate\t" + url + "\n' .
                                       '{/script}\n' .
                                       '{/test}\n' .
                                       '{test}\n'.
-                                      '{script}\n' . 
+                                      '{script}\n' .
                                       'label=mod_pagespeed On\n' .
                                       'addHeader\tModPagespeed:on\n' .
-                                      'navigate\t" + url + "\n' . 
+                                      'navigate\t" + url + "\n' .
                                       '{/script}\n' .
-                                      '{/test}\n' . 
+                                      '{/test}\n' .
                                       '";' . "\n";
                 } elseif( array_key_exists('origin', $_GET) && strlen($_GET['origin']) )
                     echo 'var batch = "Original=" + url + "\nOptimized=" + url + " noscript";' . "\n";
                 else
                     echo 'var batch = "Original=" + url + " noscript\nOptimized=" + url;' . "\n";
-                
+
                 echo "form.bulkurls.value=batch;\n";
-                
+
                 if (!$mps) {
                 ?>
 
@@ -426,7 +444,7 @@ $page_description = "Comparison Test$testLabel.";
                     script = "addHeader\tModPagespeedDomainShardCount: " + shard + "\n" + script;
                     form.script.value = script;
                 }
-                
+
                 if (form.pss_advanced.checked) {
                     form.web10.value = 0;
                     script = form.script.value;
@@ -456,12 +474,12 @@ $page_description = "Comparison Test$testLabel.";
                 }   // origin
                 } // !mps
                 ?>
-                                
+
                 return true;
             }
-            
+
             LocationChanged();
-            
+
             $('#script').val(originalScript);
         </script>
     </body>
@@ -471,47 +489,13 @@ $page_description = "Comparison Test$testLabel.";
 <?php
 /**
 * Load the location information
-* 
+*
 */
 function LoadLocations()
 {
     $locations = LoadLocationsIni();
     FilterLocations( $locations, 'pss' );
-    
-    // strip out any sensitive information
-    foreach( $locations as $index => &$loc )
-    {
-        if( isset($loc['browser']) )
-        {
-            $testCount = 16;
-            if (array_key_exists('relayServer', $loc)) {
-                $loc['backlog'] = 0;
-                $loc['avgTime'] = 30;
-                $loc['testers'] = 1;
-                $loc['wait'] = ceil(($testCount * 30) / 60);
-            } else {
-                GetPendingTests($index, $count, $avgTime);
-                if( !$avgTime )
-                    $avgTime = 30;  // default to 30 seconds if we don't have any history
-                $loc['backlog'] = $count;
-                $loc['avgTime'] = $avgTime;
-                $loc['testers'] = GetTesterCount($index);
-                $loc['wait'] = -1;
-                if( $loc['testers'] )
-                {
-                    if( $loc['testers'] > 1 )
-                        $testCount = 16;
-                    $loc['wait'] = ceil((($testCount + ($count / $loc['testers'])) * $avgTime) / 60);
-                }
-            }
-        }
-        
-        unset( $loc['localDir'] );
-        unset( $loc['key'] );
-        unset( $loc['remoteDir'] );
-        unset( $loc['relayKey'] );
-    }
-    
+
     return $locations;
 }
 

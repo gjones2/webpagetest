@@ -11,6 +11,14 @@ foreach($_REQUEST as $key => $val) {
         exit(0);
     }
 }
+// fast exit for Nagios monitoring scripts
+if (array_key_exists('HTTP_USER_AGENT', $_SERVER) &&
+    strlen($_SERVER['HTTP_USER_AGENT']) &&
+    stripos($_SERVER['HTTP_USER_AGENT'], 'nagios') !== false) {
+    echo "OK";
+    exit(0);
+}
+
 
 // shared initializiation/loading code
 set_time_limit(300);
@@ -42,7 +50,7 @@ if (function_exists('curl_init')) {
 } else
     $CURL_CONTEXT = false;
 
-if ($_SERVER["REMOTE_ADDR"] == '127.0.0.1' && isset($_REQUEST['addr'])) {
+if (isset($_SERVER["REMOTE_ADDR"]) && $_SERVER["REMOTE_ADDR"] == '127.0.0.1' && isset($_REQUEST['addr'])) {
   $_SERVER["REMOTE_ADDR"] = $_REQUEST['addr'];
 }
 if (function_exists('apache_request_headers')) {
@@ -59,6 +67,9 @@ if (isset($_SERVER["HTTP_X_FORWARDED_FOR"])) {
         $_SERVER["REMOTE_ADDR"] = $forwarded_ip;
   }
 }
+if (isset($_SERVER["HTTP_FASTLY_CLIENT_IP"]))
+  $_SERVER["REMOTE_ADDR"] = $_SERVER["HTTP_FASTLY_CLIENT_IP"];
+
 if (array_key_exists('HTTP_MOD_REWRITE', $_SERVER) && $_SERVER['HTTP_MOD_REWRITE'] == 'On') {
     define('FRIENDLY_URLS', true);
     define('VER_TIMELINE', '28/');       // version of the timeline javascript
@@ -70,22 +81,23 @@ if (array_key_exists('HTTP_MOD_REWRITE', $_SERVER) && $_SERVER['HTTP_MOD_REWRITE
 $userIsBot = false;
 if (array_key_exists('HTTP_USER_AGENT', $_SERVER) &&
     strlen($_SERVER['HTTP_USER_AGENT']) &&
-    preg_match('/robot|spider|crawler|indexer|WeSEE|AppEngine-Google|Googlebot|^$/i', $_SERVER['HTTP_USER_AGENT']))
+    preg_match('/robot|spider|crawler|indexer|WeSEE|Googlebot|YandexBot|Twitterbot|SemrushBot|Slackbot|Slack-ImgProxy|bingbot|SEOdiver|EPiServer|BlockBit|Wget|^$/i', $_SERVER['HTTP_USER_AGENT'])) {
   $userIsBot = true;
+}
 
 // constants
-define('VER_WEBPAGETEST', '2.19');   // webpagetest version
-define('VER_CSS', 68);           // version of the sitewide css file
-define('VER_JS', 32);            // version of the sitewide javascript file
-define('VER_JS_TEST', 30);       // version of the javascript specific to the test pages
-define('VER_JS_RUNNING', 1);     // version of the javascript specific to the test running status page
-define('UNKNOWN_TIME', -1);      // Value used as a flag for an unknown time.
-                                 // To find code that fails to check that a time
-                                 // is unknown, change this constant to a large
-                                 // negative number.
+define('VER_WEBPAGETEST', '19.04');   // webpagetest version
+define('VER_CSS', 74);                // version of the sitewide css file
+define('VER_JS', 33);                 // version of the sitewide javascript file
+define('VER_JS_TEST', 41);            // version of the javascript specific to the test pages
+define('VER_JS_RUNNING', 1);          // version of the javascript specific to the test running status page
+define('UNKNOWN_TIME', -1);           // Value used as a flag for an unknown time.
+                                      // To find code that fails to check that a time
+                                      // is unknown, change this constant to a large
+                                      // negative number.
 
 // SEO stuff
-$page_keywords = array('Webpagetest','Website Speed Test','Page Speed');
+$page_keywords = array('WebPageTest','Website Speed Test','Page Speed');
 $page_description = "Run a free website speed test from around the globe using real browsers at consumer connection speeds with detailed optimization recommendations.";
 
 $tempDir = './tmp';
@@ -117,21 +129,20 @@ if (!array_key_exists('shard_tests', $settings))
 $max_load = GetSetting('render_max_load');
 
 $privateInstall = true;
-if( array_key_exists('HTTP_HOST', $_SERVER) && stristr($_SERVER['HTTP_HOST'] , '.webpagetest.org') !== false )
+if (array_key_exists('HTTP_HOST', $_SERVER) &&
+    stristr($_SERVER['HTTP_HOST'] , 'httparchive.webpagetest.org') === false &&
+    stristr($_SERVER['HTTP_HOST'] , 'webpagetest.org') !== false) {
     $privateInstall = false;
+}
 
 // override some settings from the URI
 if (isset($_REQUEST['bulk'])) {
     $settings['noBulk'] = 0;
 }
-$is_ssl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_SERVER['HTTP_SSL']) && $_SERVER['HTTP_SSL'] == 'On')) ? true : false;
+$is_ssl = isSslConnection();
 $GLOBALS['cdnPath'] = '';
 if (isset($settings['cdn']) && !$is_ssl) {
     $GLOBALS['cdnPath'] = $settings['cdn'];
-}
-$GLOBALS['ptotocol'] = 'http';
-if ($is_ssl) {
-    $GLOBALS['ptotocol'] = 'https';
 }
 
 $tz_offset = null;
@@ -149,41 +160,67 @@ $user = NULL;
 $admin = false;
 $api_keys;
 if (is_dir('./forums') && (!array_key_exists('disableMybb', $settings) || !$settings['disableMybb'])) {
-    ob_start();
-    $supportsAuth = true;
+  ob_start();
+  $supportsAuth = true;
 
-    if (isset($_COOKIE['mybbuser'])) {
-        $dir = getcwd();
-        try {
-            define("IN_MYBB",1);
-            chdir('forums'); // path to MyBB
-            include './global.php';
-
-            $uid = $mybb->user['uid'];
-            $user = $mybb->user['username'];
-            if( $mybb->usergroup['cancp'] )
-                $admin = true;
-            unset($mybb);
-        }
-        catch(Exception $e) {
-        }
-        chdir($dir);
+  if (isset($_COOKIE['mybbuser'])) {
+    if (function_exists("apcu_fetch")) {
+      $userinfo = apcu_fetch("mybb-user-{$_COOKIE['mybbuser']}");
+      if (isset($userinfo) &&
+          is_array($userinfo) &&
+          isset($userinfo['uid']) &&
+          isset($userinfo['user']) &&
+          isset($userinfo['admin'])) {
+        $uid = $userinfo['uid'];
+        $user = $userinfo['user'];
+        $admin = $userinfo['admin'];
+      }
     }
-    ob_end_clean();
+    if (!isset($user)) {
+      $dir = getcwd();
+      try {
+          define("IN_MYBB",1);
+          chdir('forums'); // path to MyBB
+          include './global.php';
+
+          $uid = $mybb->user['uid'];
+          $user = $mybb->user['username'];
+          if( $mybb->usergroup['cancp'] )
+              $admin = true;
+          unset($mybb);
+      }
+      catch(Exception $e) {
+      }
+      chdir($dir);
+      if (function_exists('apcu_store')) {
+        $userinfo = array('uid' => $uid, 'user' => $user, 'admin' => $admin);
+        apcu_store("mybb-user-{$_COOKIE['mybbuser']}", $userinfo, 3600);
+      }
+    }
+  }
+  ob_end_clean();
 }
 
-if (!$admin && isset($_COOKIE['asid']) && isset($_COOKIE['google_id']) && isset($_COOKIE['google_email'])) {
-  $lock = Lock('Auth', true, 10);
-  if ($lock) {
-    $sessions = json_decode(gz_file_get_contents('./dat/admin_sessions.dat'), true);
-    $session = $_COOKIE['asid'];
-    if ($sessions &&
-        isset($sessions[$session]) &&
-        $sessions[$session]['id'] == $_COOKIE['google_id'] &&
-        $sessions[$session]['email'] == $_COOKIE['google_email']) {
-      $admin = true;
+if (!$admin) {
+  $this_user = null;
+  if (isset($user)) {
+    $this_user = $user;
+  } elseif( isset($_COOKIE['google_email']) && isset($_COOKIE['google_id']) ) {
+    $this_user = $_COOKIE['google_email'];
+  }
+  if (isset($this_user) && strlen($this_user)) {
+    $admin_users = GetSetting("admin_users");
+    if ($admin_users) {
+      $admin_users = explode(',', $admin_users);
+      if (is_array($admin_users) && count($admin_users)) {
+        foreach($admin_users as $substr) {
+          if (stripos($this_user, $substr) !== false) {
+            $admin = true;
+            break;
+          }
+        }
+      }
     }
-    Unlock($lock);
   }
 }
 
@@ -202,7 +239,7 @@ if( isset($_COOKIE['google_id']) && strlen($_COOKIE['google_id']) ) {
 }
 setcookie('o', $owner, time()+60*60*24*365, '/');
 
-if( $supportsAuth && ($admin || (array_key_exists('google_email', $_COOKIE) && strpos($_COOKIE['google_email'], '@google.com') !== false)) ) {
+if ($admin) {
     $settings['enable_google_csi'] = true;
 }
 
@@ -220,7 +257,7 @@ if (preg_match('/^[a-zA-Z0-9_]+$/', @$_REQUEST['test'])) {
     $id = $_COOKIE['tid'];
 }
 
-$median_metric = 'loadTime';
+$median_metric = isset($settings['medianMetric']) ? $settings['medianMetric'] : 'loadTime';
 $testLabel = '';
 if (strlen($id)) {
     if (@strlen($_REQUEST['rkey'])) {
@@ -236,7 +273,7 @@ if (strlen($id)) {
     $testPath = './' . GetTestPath($id);
     $test = array();
     if (is_file("$testPath/testinfo.ini")) {
-        $test = parse_ini_file("$testPath/testinfo.ini",true);
+        $test = @parse_ini_file("$testPath/testinfo.ini",true);
         if (!$userIsBot)
           touch("$testPath/testinfo.ini");
     }
@@ -251,9 +288,11 @@ if (strlen($id)) {
     $step = max(1, @(int)$_REQUEST['step']); // default is step=1
     $cached = @(int)$_REQUEST['cached'];  // define a global used in other files
     if (array_key_exists('run', $_REQUEST) && !strcasecmp($_REQUEST['run'], 'median')) {
-      require_once('page_data.inc');
-      $pageData = loadAllPageData($testPath, $options);
-      $run = GetMedianRun($pageData, $cached, $median_metric);
+      require_once 'include/TestInfo.php';
+      require_once 'include/TestResults.php';
+      $testInfo = TestInfo::fromFiles($testPath);
+      $testResults = TestResults::fromFiles($testInfo);
+      $run = $testResults->getMedianRunNumber($median_metric, $cached);
     }
     $cachedText = $cached ? '_Cached' : '';
     $testDate = null;
@@ -289,11 +328,11 @@ if (strlen($id)) {
         if( isset($testDate) && strlen($testDate) )
             $testLabel .= " - $testDate";
     }
-    
+
     if (!isset($test)) {
         $test = array();
     }
-    
+
     if (!array_key_exists('testinfo', $test)) {
         $test['testinfo'] = array();
     }
@@ -306,4 +345,3 @@ if (array_key_exists('medianMetric', $_REQUEST)) {
 if (is_file('./settings/custom_common.inc.php')) {
     include('./settings/custom_common.inc.php');
 }
-?>

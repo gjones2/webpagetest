@@ -22,7 +22,7 @@ class JsonResultGenerator {
   /**
    * JsonResultGenerator constructor.
    * @param TestInfo $testInfo Information about the test
-   * @param string $urlStart Start for test related URLS
+   * @param string $urlStart Start for test-related URLS
    * @param FileHandler $fileHandler FileHandler to be used. Optional
    * @param array $infoFlags Array of WITHOUT_* and BASIC_* constants to define if some info should be left out. Optional
    * @param bool $friendlyUrls True if friendly urls should be used (mod_rewrite), false otherwise
@@ -47,7 +47,7 @@ class JsonResultGenerator {
    * @param string $medianMetric Metric to consider when selecting the median run
    * @return array An array containing all data about the test, in a form that can be encoded with JSON
    */
-  public function resultDataArray($testResults, $medianMetric = "loadTime") {
+  public function resultDataArray($testResults, $medianMetric) {
     $testInfo = $this->testInfo->getInfoArray();
     $fvOnly = $this->testInfo->isFirstViewOnly();
     $cacheLabels = array('firstView', 'repeatView');
@@ -105,11 +105,24 @@ class JsonResultGenerator {
     $cachedMax = 0;
     if (!$fvOnly)
       $cachedMax = 1;
-    $ret['runs'] = $runs;
+    $ret['testRuns'] = $runs;
     $ret['fvonly'] = $fvOnly;
     $ret['successfulFVRuns'] = $testResults->countSuccessfulRuns(false);
     if (!$fvOnly)
       $ret['successfulRVRuns'] = $testResults->countSuccessfulRuns(true);
+
+    // lighthouse
+    if (!$this->hasInfoFlag(self::BASIC_INFO_ONLY)) {
+      $lighthouse = $testResults->getLighthouseResult();
+      if (isset($lighthouse))
+        $ret['lighthouse'] = $lighthouse;
+      $log = $testResults->getLighthouseLog();
+      if (isset($log)) {
+        if (!isset($ret['lighthouse']))
+          $ret['lighthouse'] = array();
+        $ret['lighthouse']['test_log'] = $log;
+      }
+    }
 
     // average
     $stats = array($testResults->getFirstViewAverage(), $testResults->getRepeatViewAverage());
@@ -256,13 +269,18 @@ class JsonResultGenerator {
     $ret['images'] = array();
     $ret['images']['waterfall'] = $friendlyUrlGenerator->generatedImage("waterfall");
     $ret['images']['connectionView'] = $friendlyUrlGenerator->generatedImage("connection");
-    $ret['images']['checklist'] = $friendlyUrlGenerator->generatedImage("optimization");
+    $ret['images']['checklist'] = $friendlyUrlGenerator->optimizationChecklistImage();
     $ret['images']['screenShot'] = $urlGenerator->getFile($nameOnlyPaths->screenShotFile());
     if ($this->fileHandler->fileExists($localPaths->screenShotPngFile())) {
       $ret['images']['screenShotPng'] = $urlGenerator->getFile($nameOnlyPaths->screenShotPngFile());
     }
+    if ($this->fileHandler->fileExists($localPaths->renderedVideoFile())) {
+      $ret['video'] = $urlGenerator->getFile($nameOnlyPaths->renderedVideoFile());
+    }
 
     $ret['rawData'] = array();
+    if ($this->fileHandler->gzFileExists($localPaths->devtoolsScriptTimingFile()))
+      $ret['rawData']['scriptTiming'] = $urlGenerator->getGZip($nameOnlyPaths->devtoolsScriptTimingFile());
     $ret['rawData']['headers'] = $urlPaths->headersFile();
     $ret['rawData']['pageData'] = $urlPaths->pageDataFile();
     $ret['rawData']['requestsData'] = $urlPaths->requestDataFile();

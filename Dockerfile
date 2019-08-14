@@ -1,12 +1,8 @@
 FROM php:5.6-apache
 MAINTAINER iteratec WPT Team <wpt@iteratec.de>
 
-ENV PATH=$PATH:/scripts
-
-RUN echo deb http://www.deb-multimedia.org jessie main non-free >> /etc/apt/sources.list && \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -q -y --force-yes \
-    deb-multimedia-keyring \
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -q -y --allow-unauthenticated \
     imagemagick \
     libjpeg-progs \
     exiftool \
@@ -14,14 +10,15 @@ RUN echo deb http://www.deb-multimedia.org jessie main non-free >> /etc/apt/sour
     wget \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
-    libpng12-dev \
+    libpng-dev \
     libcurl4-openssl-dev \
     python \
     python-pillow \
     cron \
+    beanstalkd \
     supervisor && \
     \
-    DEBIAN_FRONTEND=noninteractive apt-get install -q -y --force-yes\
+    DEBIAN_FRONTEND=noninteractive apt-get install -q -y --allow-downgrades --allow-change-held-packages \
     ffmpeg && \
     apt-get clean && \
     apt-get autoclean
@@ -52,28 +49,28 @@ RUN chown -R www-data:www-data /var/www/html && \
     mv connectivity.ini.sample connectivity.ini && \
     \
     mkdir -p /var/log/supervisor && \
-    mkdir -p /scripts/settings
+    mkdir -p /scripts
 
 COPY docker/server/config/locations.ini /var/www/html/settings/locations.ini
 COPY docker/server/config/php.ini /usr/local/etc/php/
 COPY docker/server/config/apache2.conf /etc/apache2/apache2.conf
 COPY docker/server/config/crontab /etc/crontab
 
-# config supervisor
+# config supervisor to run apache, cron, beanstalkd, ec2init
 COPY docker/server/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/server/config/supervisord/supervisord_apache.conf /etc/supervisor/conf.d/supervisord_apache.conf
 COPY docker/server/config/supervisord/supervisord_cron.conf /etc/supervisor/conf.d/supervisord_cron.conf
+COPY docker/server/config/supervisord/supervisord_beanstalkd.conf /etc/supervisor/conf.d/supervisord_beanstalkd.conf
+COPY docker/server/config/supervisord/supervisord_ec2init.conf /etc/supervisor/conf.d/supervisord_ec2init.conf
 
-# Copy scripts
-COPY docker/server/scripts/migrate-settings /scripts/migrate-settings
-COPY docker/server/scripts/start_archiving.sh /scripts/start_archiving.sh
-
-# Set execution bit
-RUN chmod +x /scripts/migrate-settings && \
-    chmod +x /scripts/start_archiving.sh
+# copy WPT scripts, set executable and create crontab
+COPY docker/server/scripts/ /scripts/
+RUN chmod 755 /scripts/* && \
+    crontab /etc/crontab
 
 VOLUME /var/www/html/settings
 VOLUME /var/www/html/results
+VOLUME /var/www/html/logs
 
 EXPOSE 80 443
 

@@ -1,5 +1,5 @@
 <?php
-if(extension_loaded('newrelic')) { 
+if(extension_loaded('newrelic')) {
     newrelic_add_custom_tracer('tbnDrawWaterfall');
     newrelic_add_custom_tracer('tbnDrawChecklist');
     newrelic_add_custom_tracer('GenerateThumbnail');
@@ -57,11 +57,11 @@ else
             }
             if( is_file("$testPath/$file") ) {
                 if( !strcasecmp( $type, 'jpg') )
-                    $img = imagecreatefromjpeg("$testPath/$file");
+                    $img = @imagecreatefromjpeg("$testPath/$file");
                 elseif( !strcasecmp( $type, 'gif') )
-                    $img = imagecreatefromgif("$testPath/$file");
+                    $img = @imagecreatefromgif("$testPath/$file");
                 else
-                    $img = imagecreatefrompng("$testPath/$file");
+                    $img = @imagecreatefrompng("$testPath/$file");
             }
         }
 
@@ -98,6 +98,8 @@ function tbnDrawWaterfall($testStepResult, &$img)
 
     require_once __DIR__ . '/waterfall.inc';
     $requests = $testStepResult->getRequests();
+    $localPaths = $testStepResult->createTestPaths();
+    AddRequestScriptTimings($requests, $localPaths->devtoolsScriptTimingFile());
     $use_dots = (!isset($_REQUEST['dots']) || $_REQUEST['dots'] != 0);
     $rows = GetRequestRows($requests, $use_dots);
     $page_events = GetPageEvents($testStepResult->getRawResults());
@@ -116,11 +118,16 @@ function tbnDrawWaterfall($testStepResult, &$img)
         'use_cpu' => true,
         'use_bw' => true,
         'max_bw' => $bwIn,
+        'show_user_timing' => GetSetting('waterfall_show_user_timing'),
         'is_thumbnail' => true,
+        'include_js' => true,
+        'show_chunks' => true,
+        'is_mime' => (bool)GetSetting('mime_waterfalls', 1),
         'width' => $newWidth
         );
     $url = $testStepResult->readableIdentifier($url);
-    $img = GetWaterfallImage($rows, $url, $page_events, $options, $testStepResult->getRawResults());
+    $pageData = $testStepResult->getRawResults();
+    $img = GetWaterfallImage($rows, $url, $page_events, $options, $pageData);
 }
 
 /**
@@ -141,7 +148,7 @@ function tbnDrawChecklist($testStepResult, &$img)
 
 /**
 * Resize the image down to thumbnail size
-* 
+*
 * @param mixed $img
 */
 function GenerateThumbnail(&$img, $type)
@@ -152,7 +159,7 @@ function GenerateThumbnail(&$img, $type)
     // figure out what the height needs to be
     $width = imagesx($img);
     $height = imagesy($img);
-    
+
     if ($fit > 0) {
         if ($width > $height) {
             $scale = $fit / $width;
@@ -162,12 +169,12 @@ function GenerateThumbnail(&$img, $type)
     } else {
         $scale = $newWidth / $width;
     }
-    
+
     if( $scale < 1 )
     {
         $newWidth = (int)($width * $scale);
         $newHeight = (int)($height * $scale);
-        
+
         # Create a new temporary image
         $tmp = imagecreatetruecolor($newWidth, $newHeight);
 
@@ -177,14 +184,14 @@ function GenerateThumbnail(&$img, $type)
             $quality = 3;
         fastimagecopyresampled($tmp, $img, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height, $quality);
         imagedestroy($img);
-        $img = $tmp;    
+        $img = $tmp;
         unset($tmp);
     }
 }
 
 /**
 * Send the actual thumbnail back to the user
-* 
+*
 * @param mixed $img
 * @param mixed $type
 */

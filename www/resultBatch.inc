@@ -1,5 +1,6 @@
 <?php
 require_once('testStatus.inc');
+require_once('util.inc');
 require_once('./video/visualProgress.inc.php');
 //error_reporting(E_ALL);
 
@@ -47,12 +48,14 @@ if( count($tests) && count($tests['urls']) ) {
   if( array_key_exists('test', $location_test_ini) && array_key_exists('location', $location_test_ini['test']) )
     $location = $location_test_ini['test']['location'];
 }
-    
+
 $view = trim(strtolower($test['testinfo']['view']));
 if( $view == 'simple' || $view == 'pss' )
     $view = 'pss';
 elseif ($view == 'pss_path')
     $view = 'pss_path';
+elseif ($view == 'cf')
+    $view = 'cf';
 elseif ($view == 'blink')
     $view = 'blink';
 elseif ($view == 'weblite') {
@@ -75,7 +78,7 @@ $videoCaptured = false;
 if (array_key_exists('video', $test['test']) && $test['test']['video'])
     $videoCaptured = true;
 $showExperimental = false;
-if( $videoCaptured && (!$supportsAuth || ($admin || strpos($_COOKIE['google_email'], '@google.com') !== false)) )
+if( $videoCaptured && (!$supportsAuth || $admin) )
     $showExperimental = true;
 
 
@@ -99,10 +102,10 @@ if( $dirty )
     $dirty = false;
 }
 
-$page_keywords = array('Bulk','Result','Webpagetest','Website Speed Test','Page Speed');
+$page_keywords = array('Bulk','Result','WebPageTest','Website Speed Test','Page Speed');
 $page_description = "Bulk website performance test result$testLabel.";
 
-if($csv && $view == 'pss')
+if($csv && ($view == 'pss' || $view == 'cf'))
 {
     $testInfo = $test['testinfo'];
     header ("Content-type: text/csv");
@@ -116,7 +119,7 @@ elseif($csv && $view == 'pss_path')
     if ($complete)
         DisplayPSSPath($tests, $test['testinfo']['video'], $dirty);
 }
-elseif($json && $view == 'pss')
+elseif($json && ($view == 'pss' || $view = 'cf'))
 {
     if ($complete)
         DisplayPSS($tests, $test['testinfo']['video'], $dirty);
@@ -135,7 +138,7 @@ else
 <!DOCTYPE html>
 <html>
     <head>
-        <title>WebPagetest Comparison Test Result<?php echo $testLabel; ?></title>
+        <title>WebPageTest Comparison Test Result<?php echo $testLabel; ?></title>
         <?php
         if( !$complete )
         {
@@ -149,7 +152,6 @@ else
         $gaTemplate = 'Bulk Result';
         include ('head.inc');
         ?>
-        <link rel="stylesheet" href="/video/video-js.3.2.0/video-js.min.css" type="text/css">
         <style type="text/css">
             .player
             {
@@ -165,12 +167,8 @@ else
                 width: 100%;
                 height: 380px;
             }
-            .vjs-default-skin .vjs-controls {height: 0;}
-            .vjs-default-skin .vjs-mute-control {display: none;}
-            .vjs-default-skin .vjs-volume-control {display: none;}
         </style>
         </style>
-        <script type="text/javascript" src="/video/video-js.3.2.0/video.min.js"></script>
     </head>
     <body>
         <div class="page">
@@ -179,13 +177,15 @@ else
             if( $view == 'pss' || $view == 'pss_path' )
             {
                 $navTabs = array(   'New Comparison' => FRIENDLY_URLS ? "/compare?pssid=$id" : "/pss.php?pssid=$id",
-                                    'Test Result' => FRIENDLY_URLS ? "/result/$id/" : "/results.php?test=$id",
-                                    'PageSpeed Service' => 'https://developers.google.com/speed/pagespeed/service');
-                if (array_key_exists('testinfo', $test) && array_key_exists('pss_advanced', $test['testinfo']) && $test['testinfo']['pss_advanced']) {                
+                                    'Test Result' => FRIENDLY_URLS ? "/result/$id/" : "/results.php?test=$id");
+                if (array_key_exists('testinfo', $test) && array_key_exists('pss_advanced', $test['testinfo']) && $test['testinfo']['pss_advanced']) {
                     $navTabs['New Comparison'] = FRIENDLY_URLS ? "/compare?pssid=$id&option=prioritize_visible_content" : "/pss.php?pssid=$id&option=prioritize_visible_content";
                 }
             }
-            elseif ($view == 'weblite')
+            elseif ($view == 'cf') {
+                $navTabs = array(   'New Comparison' => FRIENDLY_URLS ? "/compare-cf?pssid=$id" : "/compare-cf.php?pssid=$id",
+                                    'Test Result' => FRIENDLY_URLS ? "/result/$id/" : "/results.php?test=$id");
+            } elseif ($view == 'weblite')
             {
                 $navTabs = array(   'New Comparison' => "/optimized?pssid=$id",
                                     'Test Result' => "/result/$id/");
@@ -213,7 +213,7 @@ else
                                 echo 'Tested Url: ' . $test['testinfo']['url'] . '<br>';
                             }
                             if( $view == 'bulk' )
-                                echo GetTestInfoHtml(); 
+                                echo GetTestInfoHtml();
                         ?>
                     </div>
                 </div>
@@ -228,7 +228,7 @@ else
                         echo "<h2>$label<br><span class=\"small\">(You can bookmark this page to come back or share the results with others)</span></h2>";
                     }
 
-                    if( $view == 'pss' )
+                    if( $view == 'pss' || $view == 'cf' )
                         DisplayPSS($tests, $test['testinfo']['video'], $dirty);
                     elseif( $view == 'weblite' )
                         DisplayPSS($tests, $test['testinfo']['video'], $dirty);
@@ -243,7 +243,7 @@ else
                     if( $view != 'bulk' )
                         DisplayProgress($tests);
                 }
-                
+
                 if( $view == 'bulk' )
                 {
                     if( count($tests['variations']) )
@@ -293,14 +293,6 @@ else
                 {
                     if( $view == 'pss' || $view == 'pss_path' )
                     {
-                        ?>
-                        <div class="left" style="width: 630px; margin-left: auto; margin-right: auto;">
-                        <p>Here are some resources you can browse while you wait for testing to complete (all open in new browser tabs):</p>
-                        <ul class="bullet_list">
-                        <li><a href="https://developers.google.com/speed/pagespeed/service" target="_blank">PageSpeed Service home page</a> - information about the service</li>
-                        </ul>
-                        </div>
-                        <?php
                     } elseif( $view == 'bulk' ) {
                         if( FRIENDLY_URLS )
                             echo "<br>Download Partial Combined Raw: <a href=\"/result/$id/{$id}_bulk_page_data.csv\">Page Data</a> - <a href=\"/result/$id/{$id}_bulk_requests.csv\">Object Data</a>";
@@ -315,13 +307,32 @@ else
             <?php include('footer.inc'); ?>
             <script type="text/javascript">
                 var tests = "<?php echo implode(',', $testIds); ?>";
-                var pollingInterval = 5000;
-                var pollingIntervalTesting = 1000;
                 var waitingImage = '<?php echo "{$GLOBALS['cdnPath']}/images/status_waiting.png"; ?>';
                 var testingImage = '<?php echo "{$GLOBALS['cdnPath']}/images/status_testing.png"; ?>';
                 var lastStatusCode = 0;
                 var lastStatusText = '';
+                // polyfill performance.now
+                if ("performance" in window == false) {
+                    window.performance = {};
+                }
+                Date.now = (Date.now || function () {  // thanks IE8
+                  return new Date().getTime();
+                });
+                if ("now" in window.performance == false){
+                  var nowOffset = Date.now();
+                  if (performance.timing && performance.timing.navigationStart){
+                    nowOffset = performance.timing.navigationStart
+                  }
+                  window.performance.now = function now(){
+                    return Date.now() - nowOffset;
+                  }
+                }
+                var lastUpdate = window.performance.now();
                 function UpdateStatus(){
+                  var now = window.performance.now();
+                  var elapsed = now - lastUpdate;
+                  lastUpdate = now;
+                  if (elapsed < 0 || elapsed > 10000) {
                     try {
                       var xhr = new XMLHttpRequest();
                       xhr.open('GET', '/testStatus.php?f=json&pos=1&tests=' + tests, true);
@@ -329,7 +340,7 @@ else
                         if (xhr.readyState != 4)
                           return;
                         var reload = false;
-                        var interval = pollingInterval;
+                        var interval = 10000;
                         if (xhr.status == 200) {
                             var response = JSON.parse(xhr.responseText);
                             if (response['statusCode'] != undefined &&
@@ -343,7 +354,7 @@ else
                                     reload = true;
                             }
                             if (lastStatusCode == 100) {
-                                interval = pollingIntervalTesting;
+                                interval = 5000;
                             }
                             if (response['statusText'] != undefined &&
                                 response['statusText'] != lastStatusText) {
@@ -357,14 +368,17 @@ else
                             setTimeout('UpdateStatus()', interval);
                       };
                       xhr.onerror = function() {
-                        setTimeout('UpdateStatus()', pollingInterval);
+                        setTimeout('UpdateStatus()', 10000);
                       };
                       xhr.send();
                     } catch (err) {
-                        setTimeout('UpdateStatus()', pollingInterval);
+                        setTimeout('UpdateStatus()', 10000);
                     }
+                  } else {
+                    setTimeout('UpdateStatus()', 10000);
+                  }
                 }
-                
+
                 function CheckVideo(id) {
                     try {
                       var xhr = new XMLHttpRequest();
@@ -373,7 +387,6 @@ else
                         if (xhr.readyState != 4)
                           return;
                         var reload = false;
-                        var interval = pollingInterval;
                         if (xhr.status == 200) {
                             var response = JSON.parse(xhr.responseText);
                             if (response['statusCode'] == 200) {
@@ -386,9 +399,9 @@ else
                     } catch (err) {
                     }
                 }
-                
+
                 /*
-                 * jQuery Pimg (Preview image) 
+                 * jQuery Pimg (Preview image)
                  * Written by Dave Earley ( http://Bitsntuts.com )
                  */
                 function pimg()
@@ -418,7 +431,7 @@ else
                 //pimg();
                 <?php
                 if (!$complete && $view != 'bulk')
-                    echo "setTimeout('UpdateStatus()', pollingInterval);\n";
+                    echo "setTimeout('UpdateStatus()', 30000);\n";
                 ?>
             </script>
         </div>
@@ -440,7 +453,7 @@ if( $dirty )
 
 /**
 * Display a straight data table of the test results
-* 
+*
 * @param mixed $tests
 */
 function DisplayTests(&$tests)
@@ -481,7 +494,7 @@ function DisplayTests(&$tests)
 
 /**
 * Display the test results as a comparison across multiple variations of a given test
-* 
+*
 * @param mixed $tests
 */
 function DisplayTestsWithVariations(&$tests)
@@ -523,7 +536,7 @@ function DisplayTestsWithVariations(&$tests)
 
 /**
 * Display a single row of the data table
-* 
+*
 * @param mixed $current_id
 * @param mixed $current_url
 * @param mixed $current_label
@@ -540,7 +553,7 @@ function DisplayTest($id, $url, $label, $complete)
 
     echo '<tr>';
     if ($videoCaptured) {
-        echo "<td><input type=\"checkbox\" name=\"t[]\" value=\"$id\" title=\"First View\">";    
+        echo "<td><input type=\"checkbox\" name=\"t[]\" value=\"$id\" title=\"First View\">";
     }
     $safeUrl = htmlspecialchars($url);
     $label = htmlspecialchars($label);
@@ -551,8 +564,8 @@ function DisplayTest($id, $url, $label, $complete)
     if( $complete )
     {
         $pageData = loadAllPageData($testPath);
-        $fvMedian = GetMedianRun($pageData, 0, 'docTime');
-        $rvMedian = GetMedianRun($pageData, 1, 'docTime');
+        $fvMedian = GetMedianRun($pageData, 0, $median_metric);
+        $rvMedian = GetMedianRun($pageData, 1, $median_metric);
         $rvMedian_column = '';
         if ($rvMedian && ($pageData[$rvMedian][1]['result'] == 0 || $pageData[$rvMedian][1]['result'] == 99999))
             $rvMedian_column = number_format($pageData[$rvMedian][1]['loadTime'] / 1000.0, 3);
@@ -606,7 +619,7 @@ function DisplayTest($id, $url, $label, $complete)
 
 /**
 * Display a simple comparison
-* 
+*
 * @param mixed $tests
 * @param mixed $complete
 */
@@ -629,7 +642,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
     $includeRender = false;
     if( array_key_exists('norender', $_REQUEST) && $_REQUEST['norender'] )
         $includeRender = false;
-    
+
     $fvLoadTime = array();
     $fvRenderTimes = array();
     $rvLoadTimes = array();
@@ -644,10 +657,10 @@ function DisplayPSS(&$tests, $video, &$dirty)
     $started = 0;
     global $fvonly;
     $url = '';
-    $protocol = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_SERVER['HTTP_SSL']) && $_SERVER['HTTP_SSL'] == 'On')) ? 'https' : 'http';
+    $protocol = getUrlProtocol();
     $host  = $_SERVER['HTTP_HOST'];
     $videoCustom = '2';
-    
+
     // first pass, check the status of all of the tests and calculate the relevant times
     foreach( $tests['urls'] as &$test )
     {
@@ -680,21 +693,20 @@ function DisplayPSS(&$tests, $video, &$dirty)
             $testInfo = GetTestInfo($test['id']);
             if( $testInfo && (!$started || (array_key_exists('started', $testInfo) && $testInfo['started'] < $started)))
               $started = $testInfo['started'];
-            $options = array('end' => $test['end']);
-            $pageData = loadAllPageData($testPath, $options);
+            $pageData = loadAllPageData($testPath);
             $fvMedian = GetMedianRun($pageData, 0, $median_metric);
             $test['fvMedian'] = $fvMedian;
             $fvLoadTime = $pageData[$fvMedian][0]['loadTime'];
             $fvRenderTime = $pageData[$fvMedian][0]['render'];
             $startOffset = array_key_exists('testStartOffset', $pageData[$fvMedian][0]) ? intval(round($pageData[$fvMedian][0]['testStartOffset'])) : 0;
-            $visual = GetVisualProgress($testPath, $fvMedian, 0, null, $test['end'], $startOffset);
+            $visual = GetVisualProgress($testPath, $fvMedian, 0, $startOffset);
             if (array_key_exists('SpeedIndex', $pageData[$fvMedian][0]))
                 $fvFLIvalue = $pageData[$fvMedian][0]['SpeedIndex'];
             if (array_key_exists('SpeedIndexCustom', $pageData[$fvMedian][0]))
                 $fvFLIvalue = $pageData[$fvMedian][0]['SpeedIndexCustom'];
             if (array_key_exists('SpeedIndexDT', $pageData[$fvMedian][0]))
                 $fvSpeedIndexDTValue = $pageData[$fvMedian][0]['SpeedIndexDT'];
-            if (array_key_exists('visualComplete', $visual) && 
+            if (array_key_exists('visualComplete', $visual) &&
                 array_key_exists($visual['visualComplete'], $visual['frames']) &&
                 is_file('.' . $visual['frames'][$visual['visualComplete']]['path'])) {
                 $test['thumbnail'] = "video_$fvMedian/{$visual['frames'][$visual['visualComplete']]['file']}";
@@ -702,7 +714,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
             if( $count )
             {
                 $optimized[0] = $pageData[$fvMedian][0];
-                $optimized[0]['request_data'] = getRequests($test['id'], $testPath, $fvMedian, 0, $secure, $haveLocations, false);
+                $optimized[0]['request_data'] = getRequests($test['id'], $testPath, $fvMedian, 0, $secure);
                 $optimized[0]['page_speed'] = GetPageSpeedScore("$testPath/{$fvMedian}_pagespeed.txt");
                 if ($json) {
                     $optimized[0]['page_speed_data'] = LoadPageSpeedData("$testPath/{$fvMedian}_pagespeed.txt");
@@ -710,7 +722,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
                     loadVideo("$testPath/video_{$fvMedian}", $frames);
                     if( is_array($frames) && count($frames) ) {
                         foreach( $frames as $time => $frameFile ) {
-                            $entry = array (   
+                            $entry = array (
                                 'time' => number_format((double)$time / 1000.0, 3),
                                 'image' => "$protocol://$host$path/video_{$fvMedian}/$frameFile");
                             $ms = $time * 100;
@@ -725,7 +737,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
             else
             {
                 $original[0] = $pageData[$fvMedian][0];
-                $original[0]['request_data'] = getRequests($test['id'], $testPath, $fvMedian, 0, $secure, $haveLocations, false);
+                $original[0]['request_data'] = getRequests($test['id'], $testPath, $fvMedian, 0, $secure);
                 $original[0]['page_speed'] = GetPageSpeedScore("$testPath/{$fvMedian}_pagespeed.txt");
                 if ($json) {
                     $original[0]['page_speed_data'] = LoadPageSpeedData("$testPath/{$fvMedian}_pagespeed.txt");
@@ -733,7 +745,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
                     loadVideo("$testPath/video_{$fvMedian}", $frames);
                     if( is_array($frames) && count($frames) ) {
                         foreach( $frames as $time => $frameFile ) {
-                            $entry = array (   
+                            $entry = array (
                                 'time' => number_format((double)$time / 1000.0, 3),
                                 'image' => "$protocol://$host$path/video_{$fvMedian}/$frameFile");
                             $ms = $time * 100;
@@ -754,7 +766,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
             if( $count )
             {
                 $optimized[1] = $pageData[$rvMedian][1];
-                $optimized[1]['request_data'] = getRequests($test['id'], $testPath, $rvMedian, 1, $secure, $haveLocations, false);
+                $optimized[1]['request_data'] = getRequests($test['id'], $testPath, $rvMedian, 1, $secure);
                 $optimized[1]['page_speed'] = GetPageSpeedScore("$testPath/{$rvMedian}_Cached_pagespeed.txt");
                 if ($json) {
                     $optimized[1]['page_speed_data'] = LoadPageSpeedData("$testPath/{$rvMedian}_Cached_pagespeed.txt");
@@ -762,7 +774,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
                     loadVideo("$testPath/video_{$rvMedian}_cached", $frames);
                     if( is_array($frames) && count($frames) ) {
                         foreach( $frames as $time => $frameFile ) {
-                            $entry = array (   
+                            $entry = array (
                                 'time' => number_format((double)$time / 1000.0, 3),
                                 'image' => "$protocol://$host$path/video_{$rvMedian}_cached/$frameFile");
                             $ms = $time * 100;
@@ -776,7 +788,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
             else
             {
                 $original[1] = $pageData[$rvMedian][1];
-                $original[1]['request_data'] = getRequests($test['id'], $testPath, $rvMedian, 1, $secure, $haveLocations, false);
+                $original[1]['request_data'] = getRequests($test['id'], $testPath, $rvMedian, 1, $secure);
                 $original[1]['page_speed'] = GetPageSpeedScore("$testPath/{$rvMedian}_Cached_pagespeed.txt");
                 if ($json) {
                     $original[1]['page_speed_data'] = LoadPageSpeedData("$testPath/{$rvMedian}_Cached_pagespeed.txt");
@@ -784,7 +796,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
                     loadVideo("$testPath/video_{$rvMedian}_cached", $frames);
                     if( is_array($frames) && count($frames) ) {
                         foreach( $frames as $time => $frameFile ) {
-                            $entry = array (   
+                            $entry = array (
                                 'time' => number_format((double)$time / 1000.0, 3),
                                 'image' => "$protocol://$host$path/video_{$rvMedian}_cached/$frameFile");
                             $ms = $time * 100;
@@ -817,32 +829,6 @@ function DisplayPSS(&$tests, $video, &$dirty)
         $count++;
     }
 
-    $baseDomainRedirect = false;
-    $baseDomainSSL = false;
-    global $mod_pagespeed;
-    if (!$mod_pagespeed && !$weblite) {
-      if (!strncasecmp($url, 'https://', 8))
-        $baseDomainSSL = true;
-      $requests = getRequests($tests['urls'][1]['id'], $tests['urls'][1]['path'], $tests['urls'][1]['fvMedian'], 0, $secure, $haveLocations, false);
-      if( count($requests) ) {
-          if($basePage = GetBasePage($requests)) {
-              // see if there was a domain redirect for the base page
-              $testedHost = $requests[0]['host'];
-              $basePageHost = $basePage['host'];
-              if( $testedHost != $basePageHost )
-                  $baseDomainRedirect = true;
-              
-              // see if any of the requests served from the base page were over ssl
-              foreach( $requests as &$request ) {
-                  if( $request['host'] == $basePageHost && $request['is_secure'] ) {
-                      $baseDomainSSL = true;
-                      break;
-                  }
-              }
-          }
-      }
-    }
-
     if( $json || $csv )
     {
         $domains = array();
@@ -861,10 +847,6 @@ function DisplayPSS(&$tests, $video, &$dirty)
         GetRequestStats($optimized[1]['request_data'], $domains['Optimized RV'], $mime_stats['Optimized RV']);
 
         $testIssues = 0;
-        if ($baseDomainRedirect)
-            $testIssues |= 1;
-        if ($baseDomainSSL)
-            $testIssues |= 2;
         $json_response['data'] = array();
         $json_response['data']['Test_ID'] = $id;
         $json_response['data']['URL'] = htmlspecialchars_decode($url);
@@ -925,7 +907,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
         $json_response['data']['Optimized_RV_Page_Speed_Score'] = $optimized[1]['page_speed'];
         $json_response['data']['Original_FV_Feels_Like'] = $original[0]['SpeedIndex'];
         $json_response['data']['Optimized_FV_Feels_Like'] = $optimized[0]['SpeedIndex'];
-        
+
         if ($csv) {
             foreach ($json_response['data'] as $label => $value) {
                 $label = str_replace('_', ' ', $label);
@@ -954,23 +936,6 @@ function DisplayPSS(&$tests, $video, &$dirty)
     }
     else
     {
-        if ($baseDomainRedirect)
-        {
-            $testUrl = '/compare?url=' . urlencode($basePage['host'] . $basePage['url']);
-            echo '<div class="alert">';
-            echo '<h1>Domain Redirect Detected</h1>';
-            echo "It looks like <b>$testedHost</b> redirects to <b>$basePageHost</b> which prevented the optimization from being correctly measured.<br>Please <a href=\"$testUrl\">re-run the test</a> using <b>$basePageHost</b> instead.";
-            echo '</div>';
-        }
-        
-        if( $baseDomainSSL )
-        {
-            echo '<div class="alert">';
-            echo '<h1>HTTPS Content Detected</h1>';
-            echo "It looks like one or more resources from <b>$basePageHost</b> are served over <b>HTTPS</b> which prevented the optimization from being correctly measured.<br>(Testing of the PageSpeed Service does not support serving HTTPS content from the base domain)";
-            echo '</div>';
-        }
-        
         if (array_key_exists('pss_advanced', $testInfo) && $testInfo['pss_advanced']) {
             echo "<h2>Side-by-side Filmstrip (<a href=\"/video/compare.php?bare=1&tests={$tests['urls'][0]['id']},{$tests['urls'][1]['id']}&end=visual\" target=\"_blank\">open in new window</a>)</h2>";
             $e1='';
@@ -997,7 +962,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
                 $count++;
             }
             echo '</tr>';
-            
+
             // FV Page load time
             if( $complete )
             {
@@ -1009,7 +974,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
                   if (isset($fvSpeedIndexDT) && count($fvSpeedIndexDT))
                       DisplayMetric('<a href="https://sites.google.com/a/webpagetest.org/docs/using-webpagetest/metrics/speed-index" target="_blank">Speed Index</a> (Dev Tools)', $fvSpeedIndexDT, $count, false, false);
                 }
-                    
+
                 if( !$fvonly )
                 {
                     DisplayMetric('Repeat View Page Load Time', $rvLoadTimes, $count);
@@ -1096,7 +1061,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
             else
                 $videoComplete = false;
         }
-        
+
         if ($json) {
             $json_response['data']['VideoID'] = $videoInfo['vID' . $videoCustom];
             if ($videoComplete) {
@@ -1132,7 +1097,7 @@ function DisplayPSS(&$tests, $video, &$dirty)
 
 /**
 * Display a simple comparison
-* 
+*
 * @param mixed $tests
 * @param mixed $complete
 */
@@ -1149,7 +1114,7 @@ function DisplayPSSPath(&$tests, $video, &$dirty)
     $includeRender = false;
     if( $_REQUEST['norender'] )
         $includeRender = false;
-    
+
     $fvLoadTime = array();
     $fvRenderTimes = array();
     $rvLoadTimes = array();
@@ -1162,10 +1127,8 @@ function DisplayPSSPath(&$tests, $video, &$dirty)
     $testData = array();
     $videoTests = array();
     $videoPathTests = array();
-    
+
     // first pass, check the status of all of the tests and calculate the relevant times
-    $baseDomainRedirect = false;
-    $baseDomainSSL = false;
     foreach($tests['urls'] as &$test) {
         if( preg_match('/(Original|Optimized)(.*)/i', trim($test['l']), $matches) ) {
             $opt_string = $matches[1];
@@ -1177,11 +1140,11 @@ function DisplayPSSPath(&$tests, $video, &$dirty)
                 $variation = 'Path';
                 $videoPathTests[] = $test;
             }
-            
+
             if (!array_key_exists($variation, $testData))
                 $testData[$variation] = array();
             $testData[$variation][$opt_string] = array();
-            
+
             RestoreTest($test['id']);
 
             $entry = &$testData[$variation][$opt_string];
@@ -1192,34 +1155,19 @@ function DisplayPSSPath(&$tests, $video, &$dirty)
             $entry['pageData'] = loadAllPageData($testPath);
             $entry['median_run'] = GetMedianRun($entry['pageData'], 0, $median_metric);
             $entry['median'] = $entry['pageData'][$entry['median_run']][0];
-            $entry['requests'] = getRequests($test['id'], $testPath, $entry['median_run'], 0, $secure, $haveLocations, false);
+            $entry['requests'] = getRequests($test['id'], $testPath, $entry['median_run'], 0, $secure);
             $entry['median']['csi'] = ParseCsiInfo($test['id'], $testPath, $entry['median_run'], 0, true);
             $entry['domains'] = array();
             $entry['mime_stats'] = array();
             GetRequestStats($entry['requests'], $entry['domains'], $entry['mime_stats']);
             if( !strlen($url) )
                 $url = $entry['median']['URL'];
-            if ($basePage = GetBasePage($entry['requests'])) {
-                $testedHost = $entry['requests'][0]['host'];
-                $basePageHost = $basePage['host'];
-                if( $testedHost != $basePageHost )
-                    $baseDomainRedirect = true;
-                foreach( $entry['requests'] as &$request ) {
-                    if ($request['host'] == $basePageHost && $request['secure']) {
-                        $baseDomainSSL = true;
-                    }
-                }
-            }
         }
     }
 
     if( $csv )
     {
         $testIssues = 0;
-        if ($baseDomainRedirect)
-            $testIssues |= 1;
-        if ($baseDomainSSL)
-            $testIssues |= 2;
 
         echo "Test ID,URL,Location,Base Domain Test Issues,";
         foreach ($testData as $variation => &$configs) {
@@ -1244,39 +1192,9 @@ function DisplayPSSPath(&$tests, $video, &$dirty)
     }
     else
     {
-        if ($baseDomainRedirect)
-        {
-            $testUrl = '/compare?url=' . urlencode($basePage['host'] . $basePage['url']);
-            echo '<div class="alert">';
-            echo '<h1>Domain Redirect Detected</h1>';
-            echo "It looks like <b>$testedHost</b> redirects to <b>$basePageHost</b> which prevented the optimization from being correctly measured.<br>Please <a href=\"$testUrl\">re-run the test</a> using <b>$basePageHost</b> instead.";
-            echo '</div>';
-        }
-        
-        if( $baseDomainSSL )
-        {
-            echo '<div class="alert">';
-            echo '<h1>HTTPS Content Detected</h1>';
-            echo "It looks like one or more resources from <b>$basePageHost</b> are served over <b>HTTPS</b> which prevented the optimization from being correctly measured.<br>(PageSpeed Service does not support serving HTTPS content from the base domain)";
-            echo '</div>';
-        }
-/*        
-        echo '<br><table class="batchResults" border="1" cellpadding="15" cellspacing="0">
-                <tr><th class="empty"></th><th>Original</th><th>Optimized</th><th>Difference</th></tr>';
-
-        foreach ($testData as $variation => &$configs) {
-            $label = "$variation Load Time";
-            if ($variation == 'Page')
-                $label = "First View";
-            elseif( $variation = 'Path' )
-                $label = "Site Navigation";
-            DisplayPathMetric($label, $configs, 'loadTime');
-        }
-        echo '</table><br>';
-*/        
         global $supportsAuth;
         global $admin;
-        if( !$supportsAuth || ($admin || strpos($_COOKIE['google_email'], '@google.com') !== false) ) {
+        if (!$supportsAuth || $admin) {
             $csi = array();
             foreach ($testData as $variation => &$configs) {
                 foreach($configs['Optimized']['median']['csi'] as $name => $value) {
@@ -1305,7 +1223,7 @@ function DisplayPSSPath(&$tests, $video, &$dirty)
                 }
                 echo '</tr>';
                 foreach($csi as $name => &$values) {
-                    if ($name == 'CRITICAL_IMAGES_INLINED' || 
+                    if ($name == 'CRITICAL_IMAGES_INLINED' ||
                         $name == 'CRITICAL_DATA_RECEIVED' ||
                         $name == 'CRITICAL_DATA_LOADED' ||
                         $name == 'CRITICAL_IMAGES_RECEIVED' ||
@@ -1326,7 +1244,7 @@ function DisplayPSSPath(&$tests, $video, &$dirty)
                 echo '</table><br>';
             }
         }
-        
+
         // video
         if ($complete && $video) {
             $videoComplete = true;
@@ -1373,7 +1291,7 @@ function DisplayPSSPath(&$tests, $video, &$dirty)
                 else
                     $videoComplete = false;
             }
-            
+
             if( $videoComplete ) {
                 echo '<h2>First View Visual Comparison*</h2>';
                 VideoHtml($videoInfo['vID']);
@@ -1431,7 +1349,7 @@ function DisplayBlink(&$tests, $video, &$dirty)
             $hasCached = true;
         }
     }
-    
+
     $videoComplete = true;
     if( $hasCached )
     {
@@ -1517,15 +1435,15 @@ function DisplayBlinkTable($tests, $tableLabel)
     echo '<th class="empty" style="border-right: 1px solid white;"></th>';
     echo '<th class="empty"></th><th>Optimized</th><th>Original</th><th>Difference</th></tr>';
     echo "<tr><td rowspan=5>$tableLabel</td></tr>";
-    
+
     $metrics = array( 'Critical Low Res Loaded' => array(),
                       'Critical Page Loaded' => array(),
                       'Full Page Loaded' => array()
                        );
-    
+
     $count = 0;
     global $fvonly;
-    
+
     // first pass, check the status of all of the tests and calculate the relevant times
     foreach( $tests as $label => &$test )
     {
@@ -1549,7 +1467,7 @@ function DisplayBlinkTable($tests, $tableLabel)
         }
         $count++;
     }
-    
+
     // FV Page load time
     if( $complete )
     {
@@ -1594,7 +1512,7 @@ function DisplayBlinkTable($tests, $tableLabel)
 
 /**
 * Generate the HTML for one metric in simple view
-* 
+*
 * @param mixed $metric
 * @param mixed $values
 * @param mixed $count
@@ -1648,7 +1566,7 @@ function DisplayMetric($metric, &$values, $count, $reverse = false, $seconds = t
 
 /**
 * Display the original and optimized values for a single metric
-* 
+*
 * @param mixed $label
 * @param mixed $configs
 * @param mixed $metric
@@ -1675,7 +1593,7 @@ function DisplayPathMetric($label, &$configs, $metric, $digits = 3) {
     echo '<br><b>' . number_format( $configs['Optimized']['median'][$metric] / 1000.0, $digits) . '</b> seconds<br><br>';
     echo "<a href=\"$testurl\" target=\"_blank\"><img class=\"progress pimg\" src=\"/thumbnail.php?test=$id&width=150&run=$run&file={$run}_screen.jpg\" img_src=\"/$path/{$run}_screen.jpg\"><br>view test</a>";
     echo '</td>';
-    
+
     $delta = $configs['Optimized']['median'][$metric] - $configs['Original']['median'][$metric];
     $class = '';
     $direction = '';
@@ -1693,7 +1611,7 @@ function DisplayPathMetric($label, &$configs, $metric, $digits = 3) {
 
 /**
 * Send a request to create a video and return the ID
-* 
+*
 * @param mixed $tests
 */
 function CreateVideo(&$tests, $end = null)
@@ -1702,7 +1620,7 @@ function CreateVideo(&$tests, $end = null)
 
     if (!strlen($end))
         $end = 'visual';
-    $protocol = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_SERVER['HTTP_SSL']) && $_SERVER['HTTP_SSL'] == 'On')) ? 'https' : 'http';
+    $protocol = getUrlProtocol();
     $host  = $_SERVER['HTTP_HOST'];
     $request = "$protocol://$host/video/create.php?f=json&force=1&end=$end&tests=";
 
@@ -1721,17 +1639,17 @@ function CreateVideo(&$tests, $end = null)
         }
         $count++;
     }
-    
+
     $response = json_decode(http_fetch($request), true);
     if( $response['statusCode'] == 200 )
         $id = $response['data']['videoId'];
-    
+
     return $id;
 }
 
 /**
 * Check to see if the video is complete
-* 
+*
 * @param mixed $videoID
 */
 function CheckVideo($videoID, &$regenerate_video)
@@ -1759,13 +1677,13 @@ function CheckVideo($videoID, &$regenerate_video)
         }
     } else
         $regenerate_video = true;
-        
+
     return $done;
 }
 
 /**
 * Generate the HTML for embedding the video
-* 
+*
 * @param mixed $id
 */
 function VideoHtml($id)
@@ -1783,36 +1701,12 @@ function VideoHtml($id)
         $hasThumb = true;
         list($width, $height) = getimagesize("./$dir/video.png");
     }
-    
-    echo "<script>\n";
-    if (array_key_exists('html', $_REQUEST) && $_REQUEST['html'])
-        echo "_V_.options.techOrder = ['html5', 'flash'];\n";
-    else
-        echo "_V_.options.techOrder = ['flash', 'html5'];\n";
-    echo "_V_.options.flash.swf = '/video/player/flowplayer-3.2.16.swf';\n";
-    echo "_V_.options.flash.flashVars = {config:\"{";
-    echo "'clip':{'scaling':'fit'},";
-    echo "'plugins':{'controls':{'volume':false,'mute':false,'stop':true,'tooltips':{'buttons':true,'fullscreen':'Enter fullscreen mode'}}},";
-    echo "'canvas':{'backgroundColor':'#000000','backgroundGradient':'none'},";
-    if ($hasThumb) {
-        echo "'playlist':[{'url':'/$dir/video.png'},{'url':'/$dir/video.mp4','autoPlay':false,'autoBuffering':false}]";
-    } else {
-        echo "'playlist':[{'url':'/$dir/video.mp4','autoPlay':false,'autoBuffering':true}]";
-    }
-    echo "}\"};\n";
-    echo "_V_.options.flash.params = {
-           allowfullscreen: 'true',
-           wmode: 'transparent',
-           allowscriptaccess: 'always'
-       };
-       _V_.options.flash.attributes={};\n";
-    echo "</script>\n";
-        
-    echo "<video id=\"player\" class=\"player video-js vjs-default-skin\" controls
+
+    echo "<video id=\"player\" controls
       preload=\"auto\" width=\"$width\" height=\"$height\"";
     if ($hasThumb)
         echo " poster=\"/$dir/video.png\"";
-    echo "data-setup=\"{}\">
+    echo ">
         <source src=\"/$dir/video.mp4\" type='video/mp4'>
     </video>";
 
@@ -1823,7 +1717,7 @@ function VideoHtml($id)
 
 /**
 * Walk through the tests determining which ones are complete
-* 
+*
 * @param mixed $tests
 */
 function CheckTests(&$tests, &$dirty)
@@ -1855,7 +1749,7 @@ function CheckTests(&$tests, &$dirty)
           }
         }
       }
-      
+
       if( $complete ) {
         $test['c'] = 1;
         $dirty = true;
@@ -1865,13 +1759,13 @@ function CheckTests(&$tests, &$dirty)
       }
     }
   }
-  
+
   return $allComplete;
 }
 
 /**
 * Display progress information about the test
-* 
+*
 * @param mixed $tests
 */
 function DisplayProgress(&$tests)
@@ -1931,7 +1825,7 @@ function DisplayProgress(&$tests)
         else
             $statusText = "Waiting at the front of the queue...";
     }
-    
+
     if($json) {
         if( $seconds >= 0 ) {
             $json_response['statusCode'] = 102;
@@ -1948,12 +1842,12 @@ function DisplayProgress(&$tests)
         echo "<img id='statusImage' src=\"{$GLOBALS['cdnPath']}/images/status_$img.png\">";
         echo "<div id=\"statusText\">$statusText</div>\n";
         echo '</div><br>';
-    }    
+    }
 }
 
 /**
 * Calculate some aggregate stats off of the individual results
-* 
+*
 * @param mixed $original
 */
 function GetRequestStats(&$requests, &$domains, &$mime_stats) {
@@ -1966,16 +1860,16 @@ function GetRequestStats(&$requests, &$domains, &$mime_stats) {
     $mime_stats['webp'] = array('count' => 0, 'bytes' => 0);
     $mime_stats['other images'] = array('count' => 0, 'bytes' => 0);
     $mime_stats['other'] = array('count' => 0, 'bytes' => 0);
-        
+
     foreach( $requests as &$request )
     {
         if (strlen($request['host']))
             $domains[$request['host']] = 1;
-        
+
         $mime = $request['contentType'];
         $contentType = 'other';
-        if( stripos($mime, 'javascript') !== false || 
-            stripos($mime, 'ecmascript') !== false || 
+        if( stripos($mime, 'javascript') !== false ||
+            stripos($mime, 'ecmascript') !== false ||
             !strcasecmp($mime, 'text/js') )
         {
             $contentType = 'javascript';

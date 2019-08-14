@@ -3,8 +3,8 @@ chdir('..');
 include 'common.inc';
 set_time_limit(600);
 require_once('./benchmarks/data.inc.php');
-$page_keywords = array('Benchmarks','Webpagetest','Website Speed Test','Page Speed');
-$page_description = "WebPagetest benchmark details";
+$page_keywords = array('Benchmarks','WebPageTest','Website Speed Test','Page Speed');
+$page_description = "WebPageTest benchmark details";
 $aggregate = 'median';
 if (array_key_exists('aggregate', $_REQUEST))
     $aggregate = $_REQUEST['aggregate'];
@@ -26,7 +26,7 @@ if (array_key_exists('f', $_REQUEST)) {
 <!DOCTYPE html>
 <html>
     <head>
-        <title>WebPagetest - Benchmark trended URL</title>
+        <title>WebPageTest - Benchmark trended URL</title>
         <meta http-equiv="charset" content="iso-8859-1">
         <meta name="keywords" content="Performance, Optimization, Pagetest, Page Design, performance site web, internet performance, website performance, web applications testing, web application performance, Internet Tools, Web Development, Open Source, http viewer, debugger, http sniffer, ssl, monitor, http header, http header viewer">
         <meta name="description" content="Speed up the performance of your web pages with an automated analysis">
@@ -45,17 +45,17 @@ if (array_key_exists('f', $_REQUEST)) {
             $tab = 'Benchmarks';
             include 'header.inc';
             ?>
-            
+
             <div class="translucent">
             <div style="clear:both;">
                 <div style="float:left;" class="notes">
-                    Click on a data point in the chart to see the full test data (waterfall, etc) for the given data point.<br>
+                    Click on a data point in the chart to see the full test data (waterfall, etc.) for the given data point.<br>
                     Highlight an area of the chart to zoom in on that area and double-click to zoom out.
                 </div>
                 <div style="float: right;">
                     <form name="aggregation" method="get" action="trendurl.php">
                         <?php
-                        echo "<input type=\"hidden\" name=\"benchmark\" value=\"$benchmark\">";
+                        echo "<input type=\"hidden\" name=\"benchmark\" value=\"" . htmlspecialchars($benchmark) . "\">";
                         echo '<input type="hidden" name="url" value="' . htmlentities($url) . '">';
                         ?>
                         Time Period <select name="days" size="1" onchange="this.form.submit();">
@@ -74,8 +74,8 @@ if (array_key_exists('f', $_REQUEST)) {
             <script type="text/javascript">
             function SelectedPoint(meta, time, cached) {
                 <?php
-                echo "var url = \"$url\";\n";
-                echo "var medianMetric=\"$median_metric\";\n";
+                echo "var url = \"" . htmlspecialchars($url) . "\";\n";
+                echo "var medianMetric=\"" . htmlspecialchars($median_metric) . "\";\n";
                 ?>
                 var menu = '<div><h4>View test for ' + url + '</h4>';
                 var compare = "/video/compare.php?ival=100&medianMetric=" + medianMetric + "&tests=";
@@ -105,37 +105,46 @@ if (array_key_exists('f', $_REQUEST)) {
             </script>
             <?php
 }
-            $metrics = array('docTime' => 'Load Time (onload)', 
+            $metrics = array('docTime' => 'Load Time (onload)',
                             'SpeedIndex' => 'Speed Index',
-                            'TTFB' => 'Time to First Byte', 
+                            'TTFB' => 'Time to First Byte',
                             'basePageSSLTime' => 'Base Page SSL Time',
-                            'titleTime' => 'Time to Title', 
-                            'render' => 'Time to Start Render', 
+                            'titleTime' => 'Time to Title',
+                            'render' => 'Time to Start Render',
+                            'chromeUserTiming.firstContentfulPaint' => 'Time to First Contentful Paint',
+                            'chromeUserTiming.firstMeaningfulPaint' => 'Time to First Meaningful Paint',
                             'domContentLoadedEventStart' => 'DOM Content Loaded',
-                            'visualComplete' => 'Time to Visually Complete', 
+                            'visualComplete' => 'Time to Visually Complete',
+                            'visualComplete85' => 'Time to 85% Visually Complete',
+                            'visualComplete90' => 'Time to 90% Visually Complete',
+                            'visualComplete95' => 'Time to 95% Visually Complete',
+                            'visualComplete99' => 'Time to 99% Visually Complete',
                             'lastVisualChange' => 'Last Visual Change',
-                            'fullyLoaded' => 'Load Time (Fully Loaded)', 
+                            'fullyLoaded' => 'Load Time (Fully Loaded)',
+                            'TimeToInteractive' => 'Time to Interactive',
                             'server_rtt' => 'Estimated RTT to Server',
                             'docCPUms' => 'CPU Busy Time',
-                            'domElements' => 'Number of DOM Elements', 
-                            'connections' => 'Connections', 
-                            'requests' => 'Requests (Fully Loaded)', 
-                            'requestsDoc' => 'Requests (onload)', 
-                            'bytesInDoc' => 'Bytes In (KB - onload)', 
-                            'bytesIn' => 'Bytes In (KB - Fully Loaded)', 
-                            'js_bytes' => 'Javascript Bytes (KB)', 
-                            'js_requests' => 'Javascript Requests', 
-                            'css_bytes' => 'CSS Bytes (KB)', 
-                            'css_requests' => 'CSS Requests', 
-                            'image_bytes' => 'Image Bytes (KB)', 
+                            'domElements' => 'Number of DOM Elements',
+                            'connections' => 'Connections',
+                            'requests' => 'Requests (Fully Loaded)',
+                            'requestsDoc' => 'Requests (onload)',
+                            'bytesInDoc' => 'Bytes In (KB - onload)',
+                            'bytesIn' => 'Bytes In (KB - Fully Loaded)',
+                            'js_bytes' => 'JavaScript Bytes (KB)',
+                            'js_requests' => 'JavaScript Requests',
+                            'css_bytes' => 'CSS Bytes (KB)',
+                            'css_requests' => 'CSS Requests',
+                            'image_bytes' => 'Image Bytes (KB)',
                             'image_requests' => 'Image Requests',
-                            'flash_bytes' => 'Flash Bytes (KB)', 
-                            'flash_requests' => 'Flash Requests', 
-                            'html_bytes' => 'HTML Bytes (KB)', 
-                            'html_requests' => 'HTML Requests', 
-                            'text_bytes' => 'Text Bytes (KB)', 
+                            'flash_bytes' => 'Flash Bytes (KB)',
+                            'flash_requests' => 'Flash Requests',
+			    'video_bytes' => 'Video Bytes (KB)',
+                            'video_requests' => 'Video Requests',
+                            'html_bytes' => 'HTML Bytes (KB)',
+                            'html_requests' => 'HTML Requests',
+                            'text_bytes' => 'Text Bytes (KB)',
                             'text_requests' => 'Text Requests',
-                            'other_bytes' => 'Other Bytes (KB)', 
+                            'other_bytes' => 'Other Bytes (KB)',
                             'other_requests' => 'Other Requests',
                             'browser_version' => 'Browser Version');
             if (!$info['video']) {
@@ -147,10 +156,10 @@ if (array_key_exists('f', $_REQUEST)) {
               }
             }
             if (!isset($out_data)) {
-                echo "<h1>{$info['title']} - $url</h1>";
+                echo "<h1>{$info['title']} - " . htmlspecialchars($url) . "</h1>";
                 if (array_key_exists('description', $info))
-                    echo "<p>{$info['description']}</p>\n";
-                echo "<p>Displaying the median run for $url trended over time</p>";
+                    echo "<p>" . htmlspecialchars($info['description']) . "</p>\n";
+                echo "<p>Displaying the median run for " . htmlspecialchars($url) . " trended over time</p>";
             }
             foreach( $metrics as $metric => $label) {
                 if (!isset($out_data)) {
@@ -169,7 +178,7 @@ if (array_key_exists('f', $_REQUEST)) {
 if (!isset($out_data)) {
             ?>
             </div>
-            
+
             <?php include('footer.inc'); ?>
         </div>
     </body>
@@ -183,7 +192,7 @@ if (!isset($out_data)) {
 
 /**
 * Display the charts for the given benchmark/metric
-* 
+*
 * @param mixed $benchmark
 */
 function DisplayBenchmarkData(&$benchmark, $metric, $loc = null, $title = null) {
@@ -197,7 +206,7 @@ function DisplayBenchmarkData(&$benchmark, $metric, $loc = null, $title = null) 
     }
     $chart_title = '';
     if (isset($title))
-        $chart_title = "title: \"$title (First View)\",";
+        $chart_title = "title: \"" . htmlspecialchars($title) . " (First View)\",";
     $tsv = LoadTrendDataTSV($benchmark['name'], 0, $metric, $url, $loc, $annotations, $meta);
     if (isset($out_data)) {
         if (!array_key_exists($bmname, $out_data)) {
@@ -246,7 +255,7 @@ function DisplayBenchmarkData(&$benchmark, $metric, $loc = null, $title = null) 
     }
     if (!array_key_exists('fvonly', $benchmark) || !$benchmark['fvonly']) {
         if (isset($title))
-            $chart_title = "title: \"$title (Repeat View)\",";
+            $chart_title = "title: \"" . htmlspecialchars($title) . " (Repeat View)\",";
         $tsv = LoadTrendDataTSV($benchmark['name'], 1, $metric, $url, $loc, $annotations, $meta);
         if (isset($out_data)) {
             $out_data[$bmname][$metric]['RV'] = TSVEncode($tsv);
@@ -290,5 +299,5 @@ function DisplayBenchmarkData(&$benchmark, $metric, $loc = null, $title = null) 
             echo "</script>\n";
         }
     }
-}    
+}
 ?>

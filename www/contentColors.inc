@@ -15,7 +15,8 @@ function GetRequestColors($content_type, $thumbnail, $is_mime,
             'connect'  => array(177,73,62),
             'ssl'      => array(69, 110, 175),
             'ttfb'     => array(208,137,14),
-            'download' => array(118,71,130)
+            'download' => array(118,71,130),
+            'js'       => array(255,173,255),
             );
     } else {
         // classic colors
@@ -25,7 +26,8 @@ function GetRequestColors($content_type, $thumbnail, $is_mime,
                 'connect'  => array(255, 157, 66),
                 'ssl'      => array(213,102, 223),
                 'ttfb'     => array(64, 255, 64),
-                'download' => array(52,150,255)
+                'download' => array(52,150,255),
+                'js'       => array(255,173,255),
                 );
         } else {
             $colors = array(
@@ -34,6 +36,7 @@ function GetRequestColors($content_type, $thumbnail, $is_mime,
                 'ssl'      => array(207, 37, 223),
                 'ttfb'     => array(0, 255, 0),
                 'download' => array(0,123,255),
+                'js'       => array(255,173,255),
                 );
         }
     }
@@ -76,6 +79,7 @@ function MimeColors() {
         'image' => array(196,154,232),
         'flash' => array(45,183,193),
         'font' => array(255,82,62),
+        'video' => array(33, 194, 162),
         'other' => array(196,196,196)
         );
     return $colors;
@@ -85,6 +89,9 @@ function MimeColors() {
 * Bucket the content types into our known categories
 */
 function ContentType($mime, $url = null) {
+    $pos = strpos($mime, ';');
+    if ($pos !== false)
+      $mime = substr($mime, 0, $pos);
     $content_type = 'other';
     if (stripos($mime, 'javascript') !== false ||
         stripos($mime, 'ecmascript') !== false ||
@@ -99,6 +106,8 @@ function ContentType($mime, $url = null) {
 //        $content_type = 'text';
     } elseif (!strncasecmp($mime, 'image/', 6)) {
         $content_type = 'image';
+    } elseif (!strncasecmp($mime, 'video/', 6)) {
+        $content_type = 'video';
     } elseif (!strcasecmp($mime, 'application/x-shockwave-flash')) {
         $content_type = 'flash';
     } elseif (stripos($mime, 'font') !== false) {
@@ -121,6 +130,9 @@ function ContentType($mime, $url = null) {
                 $ext == '.woff' || $ext == '.woff2' ||
                 $ext == '.otf')
           $content_type = 'font';
+	else if ($ext == '.mp4' ||  
+		 $ext == '.f4v' || $ext == '.flv')
+	  $content_type = 'video';
       }
     }
     

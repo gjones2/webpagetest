@@ -17,7 +17,7 @@ class TestInfo {
   }
 
   /**
-   * @param string $id The test id
+   * @param string $id The test ID
    * @param string $rootDirectory The root directory of the test data
    * @param array $testInfo Array with information about the test
    * @return TestInfo The created instance
@@ -35,7 +35,10 @@ class TestInfo {
         touch($iniPath);
     }
     $test["testinfo"] = GetTestInfo($rootDirectory);
-    return new self($test['testinfo']["id"], $rootDirectory, $test);
+    if (isset($test) && is_array($test) && isset($test['testinfo']["id"]))
+      return new self($test['testinfo']["id"], $rootDirectory, $test);
+    else
+      return new self('010101_0_0', $rootDirectory, $test);
   }
 
   /**
@@ -60,10 +63,25 @@ class TestInfo {
   }
 
   /**
+   * @return string The type of the test
+   */
+  public function getTestType() {
+    $type = isset($this->rawData['testinfo']['type']) ? $this->rawData['testinfo']['type'] : '';
+    return $type;
+  }
+
+  /**
    * @return bool True if the test only has first views, false otherwise
    */
   public function isFirstViewOnly() {
     return !empty($this->rawData['test']['fvonly']); // empty also checks for false or null
+  }
+
+  /**
+   * @return bool True if the test contains AFT values, false otherwise
+   */
+  public function hasAboveTheFoldTime() {
+    return !empty($this->rawData['test']['aft']);
   }
 
   /**
@@ -118,6 +136,20 @@ class TestInfo {
   }
 
   /**
+   * @return int The maximum number of steps executed in one of the runs
+   */
+  public function getSteps() {
+    return empty($this->rawData['testinfo']['steps']) ? 1 : $this->rawData['testinfo']['steps'];
+  }
+
+  /**
+   * @return int The configured latency for the test
+   */
+  public function getLatency() {
+    return empty($this->rawData['testinfo']['latency']) ? null : $this->rawData['testinfo']['latency'];
+  }
+
+  /**
    * @param int $run The run number
    * @return null|string Tester for specified run
    */
@@ -151,5 +183,49 @@ class TestInfo {
       }
     }
     return false;
+  }
+
+  /**
+   * @return bool True if the test is marked as an test_error, false otherwise
+   */
+  public function isTestError() {
+    return !empty($this->rawData['testinfo']['test_error']);
+  }
+
+  /**
+   * @return string|null The error (if exists) or null if there is no error
+   */
+  public function getRunError($run, $cached) {
+    $cachedIdx = $cached ? 1 : 0;
+    if (empty($this->rawData['testinfo']['errors'][$run][$cachedIdx])) {
+      return null;
+    }
+    return $this->rawData['testinfo']['errors'][$run][$cachedIdx];
+  }
+
+  /**
+   * @return bool True if the test is supposed to have a video, false otherwise
+   */
+  public function hasVideo() {
+    return (isset($this->rawData['test']['Capture Video']) && $this->rawData['test']['Capture Video']) ||
+           (isset($this->rawData['test']['Video']) && $this->rawData['test']['Video']) ||
+           (isset($this->rawData['test']['video']) && $this->rawData['test']['video']);
+  }
+
+  /**
+   * @return bool True if the test is supposed to have screenshots (images), false otherwise
+   */
+  public function hasScreenshots() {
+    return empty($this->rawData["testinfo"]["noimages"]);
+  }
+
+  /**
+   * @return bool True if the test is supposed to have a timeline, false otherwise
+   */
+  public function hasTimeline() {
+    $ret = !empty($this->rawData["testinfo"]["timeline"]);
+    if ($ret && !empty($this->rawData["testinfo"]["discard_timeline"]))
+      $ret = false;
+    return $ret;
   }
 }

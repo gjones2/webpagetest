@@ -1,4 +1,4 @@
-<?php 
+<?php
 // We intend to change to "?tests" but also allow "?test" so as to not break existing links.
 $tests = (isset($_REQUEST['tests'])) ? $_REQUEST['tests'] : $_REQUEST['test'];
 $tests = preg_replace('/[^a-zA-Z0-9,_\.\-:\ ]/', '', $tests);
@@ -64,15 +64,6 @@ if ($rv) {
 $median_run = (isset($_REQUEST['median_run'])) ? $_REQUEST['median_run'] : 0;
 $median_value = (isset($_REQUEST['median_value'])) ? $_REQUEST['median_value']  : 0;
 
-// Remove speed index if none of the runs have video.
-$removeSpeedIndex = true;
-foreach ( $testsInfo as $testInfo ) {
-  if ($testInfo && $testInfo['video']) {
-    $removeSpeedIndex = false;
-    break;
-  }
-}
-
 // Color palette taken from benchmarks/view.php
 // TODO(geening): Combine this with the colors in benchmarks/view.php
 // TODO(geening): Have a cleaner way to support more than 8 tests with
@@ -94,7 +85,7 @@ $common_label = implode(" ", $common_labels);
 <!DOCTYPE html>
 <html>
     <head>
-        <title>WebPagetest - Graph Page Data</title>
+        <title>WebPageTest - Graph Page Data</title>
         <meta http-equiv="charset" content="iso-8859-1">
         <meta name="author" content="Patrick Meenan">
         <?php $gaTemplate = 'Graph'; include ('head.inc'); ?>
@@ -170,23 +161,26 @@ $common_label = implode(" ", $common_labels);
             }
             ?>
             <?php
-            $metrics = array('docTime' => 'Load Time (onload - ms)', 
+            $metrics = array('docTime' => 'Load Time (onload - ms)',
+                            'loadEventStart' => 'Browser-reported Load Time (Navigation Timing onload)',
+                            'domContentLoadedEventStart' => 'DOM Content Loaded (Navigation Timing)',
                             'SpeedIndex' => 'Speed Index',
-                            'TTFB' => 'Time to First Byte (ms)', 
+                            'TTFB' => 'Time to First Byte (ms)',
                             'basePageSSLTime' => 'Base Page SSL Time (ms)',
-                            'render' => 'Time to Start Render (ms)', 
+                            'render' => 'Time to Start Render (ms)',
+                            'TimeToInteractive' => 'Time to Interactive (ms) - Beta',
                             'visualComplete' => 'Time to Visually Complete (ms)',
-                            'lastVisualChange' => 'Last Visual Change (ms)', 
+                            'lastVisualChange' => 'Last Visual Change (ms)',
                             'titleTime' => 'Time to Title (ms)',
-                            'fullyLoaded' => 'Fully Loaded (ms)', 
+                            'fullyLoaded' => 'Fully Loaded (ms)',
                             'server_rtt' => 'Estimated RTT to Server (ms)',
                             'docCPUms' => 'CPU Busy Time',
-                            'domElements' => 'Number of DOM Elements', 
-                            'connections' => 'Connections', 
-                            'requests' => 'Requests (Fully Loaded)', 
-                            'requestsDoc' => 'Requests (onload)', 
-                            'bytesInDoc' => 'Bytes In (onload)', 
-                            'bytesIn' => 'Bytes In (Fully Loaded)', 
+                            'domElements' => 'Number of DOM Elements',
+                            'connections' => 'Connections',
+                            'requests' => 'Requests (Fully Loaded)',
+                            'requestsDoc' => 'Requests (onload)',
+                            'bytesInDoc' => 'Bytes In (onload)',
+                            'bytesIn' => 'Bytes In (Fully Loaded)',
                             'browser_version' => 'Browser Version');
             $customMetrics = null;
             $csiMetrics = null;
@@ -314,7 +308,7 @@ function InsertChart($metric, $label) {
       sort($values, SORT_NUMERIC);
       $sum = array_sum($values);
       $count = count($values);
-      $mean = number_format($sum / $count, 3, '.', '');
+      $mean = $count ? number_format($sum / $count, 3, '.', '') : 0;
       echo "<td>$mean</td>";
       $median = $values[intval($count / 2)];
       echo "<td>$median</td>";
@@ -326,15 +320,18 @@ function InsertChart($metric, $label) {
       $sqsum = 0;
       foreach ($values as $value)
           $sqsum += pow($value - $mean, 2);
-      $stddev = number_format(sqrt($sqsum / $count), 3, '.', '');
+      $stddev = $count ? number_format(sqrt($sqsum / $count), 3, '.', '') : 0;
       echo "<td>$stddev</td>";
-      echo "<td>" . number_format(($stddev/$mean) * 100, 3, '.', '') . "%</td>";
+      if ($mean > 0)
+        echo "<td>" . number_format(($stddev/$mean) * 100, 3, '.', '') . "%</td>";
+      else
+        echo "<td></td>";
 
       echo '</tr>';
     }
     echo '</table></div>';
   }
-  
+
   // For each view (first / repeat) that we want to show
   foreach ($views as $cached) {
     $statValues = array();

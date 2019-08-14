@@ -1,7 +1,7 @@
 <?php
 
 /**
- * For generation of test run specific URLs
+ * For generation of test-run specific URLs
  */
 abstract class UrlGenerator {
 
@@ -21,7 +21,7 @@ abstract class UrlGenerator {
 
   /**
    * @param bool $friendlyUrls If the URL should be friendly (via mod_rewrite) or standard
-   * @param string $baseUrl Url base for the server (like http://my.wpt.server)
+   * @param string $baseUrl URL base for the server (like http://my.wpt.server)
    * @param string $testId ID of the test
    * @param int $run Run number
    * @param bool $cached True if cached run, false otherwise
@@ -56,10 +56,23 @@ abstract class UrlGenerator {
   public abstract function generatedImage($image);
 
   /**
+   * @param bool $connectionView True for a connection view waterfall, false for the normal one.
+   * @param int $width Width of the generated image
+   * @param bool $withMime True if MIME data should be generated, false otherwise
+   * @return string The generated URL
+   */
+  public abstract function waterfallImage($connectionView, $width, $withMime);
+
+  /**
    * @param string $extraParams|null Extra parameters to append (without '?' or '&' at start)
    * @return string The generated URL
    */
   public abstract function resultSummary($extraParams = null);
+
+  /**
+   * @return string The generated URL
+   */
+  public abstract function optimizationChecklistImage();
 
   /**
    * @param string $file The name of the file to get with the URL
@@ -91,7 +104,7 @@ abstract class UrlGenerator {
   }
 
   /**
-   * @param int $bodyId The body id to identify the response body
+   * @param int $bodyId The body ID to identify the response body
    * @return string The generated URL
    */
   public function responseBodyWithBodyId($bodyId) {
@@ -99,14 +112,39 @@ abstract class UrlGenerator {
   }
 
   /**
+   * @param string $end Optional. A specific "end" to use for video creation
    * @return string The generated URL to create a video
    */
-  public function createVideo() {
-    $testSuffix = ($this->step > 1) ? ("-s:" . $this->step) : "";
-    $idSuffix = ($this->step > 1) ? ("." . $this->step) : "";
-    $tests = $this->testId . "-r:" . $this->run . "-c:" . ($this->cached ? 1 : 0) . $testSuffix;
-    $id = $this->testId . "." . $this->run . "." . ($this->cached ? 1 : 0) . $idSuffix;
+  public function createVideo($end = null) {
+    $tests = $this->testId . "-r:" . $this->run . "-c:" . ($this->cached ? 1 : 0);
+    $tests .= ($this->step > 1) ? ("-s:" . $this->step) : "";
+    $tests .= $end ? "-e:$end" : "";
+
+    $id = $this->testId . "." . $this->run . "." . ($this->cached ? 1 : 0);
+    $id .= ($this->step > 1) ? ("." . $this->step) : "";
+    $id .= $end ? "-e$end" : "";
     return $this->baseUrl . "/video/create.php?tests=" . $tests . "&id=" . $id;
+  }
+
+  /**
+   * @param string $end Optional. A specific "end" to use for filmstrip view
+   * @return string The generated URL for the filmstrip view
+   */
+  public function filmstripView($end = null) {
+    $tests = $this->testId . "-r:" . $this->run . "-c:" . ($this->cached ? 1 : 0);
+    $tests .= ($this->step > 1) ? ("-s:" . $this->step) : "";
+    $tests .= $end ? "-e:$end" : "";
+    return $this->baseUrl . "/video/compare.php?tests=" . $tests;
+  }
+
+  /**
+   * @param string $frame The thumbnail name
+   * @param int $fit Maximum size of the thumbnail
+   * @return string The URL for a thumbnail of the video frame
+   */
+  public function videoFrameThumbnail($frame, $fit) {
+    $file = "video_" . rtrim(strtolower($this->underscorePrefix()), "_") . "/" . $frame;
+    return $this->baseUrl . "/thumbnail.php?test=" . $this->testId . "&fit=" . $fit . "&file=" . $file;
   }
 
   /**
@@ -114,6 +152,16 @@ abstract class UrlGenerator {
    */
   public function downloadVideoFrames() {
     return $this->baseUrl . "/video/downloadFrames.php?" . $this->urlParams();
+  }
+
+  /**
+   * @param string $page Step-independent Result page to generate the URL for
+   * @param string $extraParams|null Extra parameters to append (without '?' or '&' at start)
+   * @return string The generated URL
+   */
+  public function stepDetailPage($page, $extraParams = null) {
+    $extraParams = $extraParams ? ("&" . $extraParams) : "";
+    return $this->baseUrl . "/" . $page . ".php?" . $this->urlParams() . $extraParams;
   }
 
   protected function underscorePrefix() {
@@ -133,9 +181,6 @@ class FriendlyUrlGenerator extends UrlGenerator {
     $url = $this->baseUrl . "/result/" . $this->testId . "/" . $this->run . "/" . $page . "/";
     if ($this->cached) {
       $url .= "cached/";
-    }
-    if ($this->step > 1) {
-      $url .= $this->step . "/";
     }
     if ($extraParams != null) {
       $url .= "?" . $extraParams;
@@ -171,6 +216,17 @@ class FriendlyUrlGenerator extends UrlGenerator {
     }
     return $url;
   }
+
+  public function waterfallImage($connectionView, $width, $withMime) {
+    $params = "&width=" . $width;
+    $params .= $connectionView ? "&type=connection" : "";
+    $params .= $withMime ? "&mime=1" : "";
+    return $this->baseUrl . "/waterfall.png?" . $this->urlParams() . $params;
+  }
+
+  public function optimizationChecklistImage() {
+    return $this->generatedImage("optimization");
+  }
 }
 
 class StandardUrlGenerator extends UrlGenerator {
@@ -191,5 +247,16 @@ class StandardUrlGenerator extends UrlGenerator {
   public function resultSummary($extraParams = null) {
     $extraParams = $extraParams ? ("&" . $extraParams) : "";
     return $this->baseUrl . "/results.php?test=" . $this->testId . $extraParams;
+  }
+
+  public function waterfallImage($connectionView, $width, $withMime) {
+    $params = "&width=" . $width;
+    $params .= $connectionView ? "&type=connection" : "";
+    $params .= $withMime ? "&mime=1" : "";
+    return $this->baseUrl . "/waterfall.php?" . $this->urlParams() . $params;
+  }
+
+  public function optimizationChecklistImage() {
+    return $this->generatedImage("optimizationChecklist");
   }
 }

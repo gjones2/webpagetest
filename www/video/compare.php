@@ -1,4 +1,5 @@
 <?php
+require_once(__DIR__ . '/../util.inc');
 if( !isset($_REQUEST['tests']) && isset($_REQUEST['t']) )
 {
     $tests = '';
@@ -14,8 +15,7 @@ if( !isset($_REQUEST['tests']) && isset($_REQUEST['t']) )
                 $tests .= "-r:{$parts[1]}";
         }
     }
-
-    $protocol = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_SERVER['HTTP_SSL']) && $_SERVER['HTTP_SSL'] == 'On')) ? 'https' : 'http';
+    $protocol = getUrlProtocol();
     $host  = $_SERVER['HTTP_HOST'];
     $uri = $_SERVER['PHP_SELF'];
     $params = '';
@@ -26,6 +26,7 @@ if( !isset($_REQUEST['tests']) && isset($_REQUEST['t']) )
 }
 else
 {
+    require_once __DIR__ . '/../include/UrlGenerator.php';
     chdir('..');
     include 'common.inc';
     require_once('page_data.inc');
@@ -33,10 +34,10 @@ else
     require_once('object_detail.inc');
     require_once('waterfall.inc');
 
-    $page_keywords = array('Video','comparison','Webpagetest','Website Speed Test');
+    $page_keywords = array('Video','comparison','WebPageTest','Website Speed Test');
     $page_description = "Visual comparison of multiple websites with a side-by-side video and filmstrip view of the user experience.";
 
-    $title = 'Web page visual comparison';
+    $title = 'Webpage visual comparison';
     $labels = '';
     $location = null;
     foreach( $tests as &$test )
@@ -64,7 +65,7 @@ else
     <!DOCTYPE html>
     <html>
         <head>
-            <title>WebPagetest - Visual Comparison</title>
+            <title>WebPageTest - Visual Comparison</title>
             <?php
                 if( !$ready )
                 {
@@ -98,6 +99,7 @@ else
                 {
                     margin-left: auto;
                     margin-right: auto;
+                    padding-right: 100vw;
                 }
                 #videoDiv
                 {
@@ -111,6 +113,18 @@ else
                 }
                 #videoContainer
                 {
+                    <?php
+                    if (array_key_exists('sticky', $_GET) && strlen($_GET['sticky'])) {
+                    ?>
+                        position: sticky;
+                        top: 0;
+                        z-index: 5;
+                        <?php
+                            echo "background: #$bgcolor;\n";
+                        ?>
+                    <?php
+                    }
+                    ?>
                     table-layout: fixed;
                     margin-left: auto;
                     margin-right: auto;
@@ -174,6 +188,7 @@ else
                     float: right;
                     position: relative;
                     top: -8em;
+                    z-index: 4;
                 }
                 #layoutTable
                 {
@@ -237,7 +252,7 @@ else
                     margin-top: 10px;
                     display: block;
                 }
-                #marker {
+                .waterfall_marker {
                     position: absolute; top: 0; left: 250px;
                     height: 100%;
                     width: 2px;
@@ -265,11 +280,26 @@ else
                 <?php
                 }
                 ?>
-                div.waterfall-container {top: -8em;}
+                div.waterfall-container {top: -2em; width:930px; margin: 0 auto;}
+                <?php
+                if (array_key_exists('sticky', $_GET) && strlen($_GET['sticky'])) {
+                ?>
+                    div.waterfall-sliders {
+                        position: sticky;
+                        clear: none;
+                        margin-top: 3em;
+                        top: 0;
+                        z-index: 3;
+                        <?php
+                            echo "background: #$bgcolor;\n";
+                        ?>
+                <?php
+                }
+                ?>
             </style>
         </head>
         <body>
-            <div class="page">
+            <div class="page-wide">
                 <?php
                 $tab = 'Test Result';
                 $nosubheader = true;
@@ -316,7 +346,7 @@ else
                     echo "var padLeft = $padding;\n";
                     ?>
                     var marker = parseInt(padLeft + ((position / width) * (930 - padLeft)));
-                    $('#marker').css('left', marker + 'px');
+                    $('.waterfall_marker').css('left', marker + 'px');
                 }
                 UpdateScrollPosition();
 
@@ -359,15 +389,7 @@ function ScreenShotTable()
         if (!defined('EMBED')) {
             echo '<br>';
         }
-        echo '<form id="createForm" name="create" method="get" action="/video/create.php">';
-        echo "<input type=\"hidden\" name=\"end\" value=\"$endTime\">";
-        echo '<input type="hidden" name="tests" value="' . htmlspecialchars($_REQUEST['tests']) . '">';
-        echo "<input type=\"hidden\" name=\"bg\" value=\"$bgcolor\">";
-        echo "<input type=\"hidden\" name=\"text\" value=\"$color\">";
-        if (isset($_REQUEST['labelHeight']) && is_numeric($_REQUEST['labelHeight']))
-          echo '<input type="hidden" name="labelHeight" value="' . htmlspecialchars($_REQUEST['labelHeight']) . '">"';
-        if (isset($_REQUEST['timeHeight']) && is_numeric($_REQUEST['timeHeight']))
-          echo '<input type="hidden" name="timeHeight" value="' . htmlspecialchars($_REQUEST['timeHeight']) . '">"';
+
         echo '<table id="videoContainer"><tr>';
 
         // build a table with the labels
@@ -387,23 +409,13 @@ function ScreenShotTable()
             if( !strpos($test['name'], ' ') )
                 $break = ' style="word-break: break-all;"';
             echo "<tr width=10% height={$height}px ><td$break class=\"pagelinks\">";
-            $name = urlencode($test['name']);
-            $cached = 0;
-            if( $test['cached'] )
-                $cached = 1;
 
             // Print the index outside of the link tag
             echo $test['index'] . ': ';
 
             if (!defined('EMBED')) {
-                $cached = '';
-                if( $test['cached'] )
-                    $cached = 'cached/';
-                if( FRIENDLY_URLS )
-                    $href = "/result/{$test['id']}/{$test['run']}/details/$cached";
-                else
-                    $href = "/details.php?test={$test['id']}&run={$test['run']}&cached={$test['cached']}";
-
+                $urlGenerator = UrlGenerator::create(FRIENDLY_URLS, "", $test['id'], $test['run'], $test['cached'], $test['step']);
+                $href = $urlGenerator->resultPage("details") . "#waterfall_view_step" . $test['step'];
                 echo "<a class=\"pagelink\" id=\"label_{$test['id']}\" href=\"$href\">" . WrapableString(htmlspecialchars($test['name'])) . '</a>';
             } else {
                 echo WrapableString(htmlspecialchars($test['name']));
@@ -458,13 +470,17 @@ function ScreenShotTable()
             $frameCount = 0;
             $progress = null;
             $ms = 0;
+            $localPaths = new TestPaths(GetTestPath($test['id']), $test['run'], $test['cached'], $test['step']);
+            $urlGenerator = UrlGenerator::create(false, "", $test['id'], $test['run'], $test['cached'], $test['step']);
             while( $ms < $filmstrip_end_time ) {
                 $ms = $frameCount * $interval;
                 // find the closest video frame <= the target time
                 $frame_ms = null;
-                foreach ($test['video']['frames'] as $frameTime => $file) {
-                  if ($frameTime <= $ms && (!isset($frame_ms) || $frameTime > $frame_ms))
-                    $frame_ms = $frameTime;
+                if (isset($test['video']['frames']) && is_array($test['video']['frames']) && count($test['video']['frames'])) {
+                  foreach ($test['video']['frames'] as $frameTime => $file) {
+                    if ($frameTime <= $ms && (!isset($frame_ms) || $frameTime > $frame_ms))
+                      $frame_ms = $frameTime;
+                  }
                 }
                 $path = null;
                 if (isset($frame_ms))
@@ -477,11 +493,9 @@ function ScreenShotTable()
                     $lastThumb = $path;
 
                 echo '<td>';
+
                 if ($ms <= $testEnd) {
-                    $cached = '';
-                    if( $test['cached'] )
-                        $cached = '_cached';
-                    $imgPath = GetTestPath($test['id']) . "/video_{$test['run']}$cached/$path";
+                    $imgPath = $localPaths->videoDir() . "/" . $path;
                     echo "<a href=\"/$imgPath\">";
                     echo "<img title=\"" . htmlspecialchars($test['name']) . "\"";
                     $class = 'thumb';
@@ -494,7 +508,8 @@ function ScreenShotTable()
                     echo " width=\"$width\"";
                     if( $height )
                         echo " height=\"$height\"";
-                    echo " src=\"/thumbnail.php?test={$test['id']}&fit=$thumbSize&file=video_{$test['run']}$cached/$path\"></a>";
+                    $imgUrl = $urlGenerator->videoFrameThumbnail($path, $thumbSize);
+                    echo " src=\"$imgUrl\"></a>";
                     if (isset($progress))
                         echo "<br>$progress%";
                     $lastThumb = $path;
@@ -511,22 +526,34 @@ function ScreenShotTable()
 
         // end of the container table
         echo "</td></tr></table>\n";
+
+        echo '<form id="createForm" name="create" method="get" action="/video/create.php">';
+        echo "<input type=\"hidden\" name=\"end\" value=\"$endTime\">";
+        echo '<input type="hidden" name="tests" value="' . htmlspecialchars($_REQUEST['tests']) . '">';
+        echo "<input type=\"hidden\" name=\"bg\" value=\"$bgcolor\">";
+        echo "<input type=\"hidden\" name=\"text\" value=\"$color\">";
+        if (isset($_REQUEST['labelHeight']) && is_numeric($_REQUEST['labelHeight']))
+            echo '<input type="hidden" name="labelHeight" value="' . htmlspecialchars($_REQUEST['labelHeight']) . '">"';
+        if (isset($_REQUEST['timeHeight']) && is_numeric($_REQUEST['timeHeight']))
+            echo '<input type="hidden" name="timeHeight" value="' . htmlspecialchars($_REQUEST['timeHeight']) . '">"';
+        echo '<div class="page">';
         echo "<div id=\"image\">";
         echo "<a id=\"export\" class=\"pagelink\" href=\"filmstrip.php?tests=" . htmlspecialchars($_REQUEST['tests']) . "&thumbSize=$thumbSize&ival=$interval&end=$endTime&text=$color&bg=$bgcolor\">Export filmstrip as an image...</a>";
         echo "</div>";
         echo '<div id="bottom"><input type="checkbox" name="slow" value="1"> Slow Motion<br><br>';
         echo "<input id=\"SubmitBtn\" type=\"submit\" value=\"Create Video\">";
         echo '<br><br><a class="pagelink" href="javascript:ShowAdvanced()">Advanced customization options...</a>';
-        echo "</div></form>";
+        echo "</div></div></form>";
         if (!defined('EMBED')) {
         ?>
+        <div class="page">
         <div id="layout">
             <form id="layoutForm" name="layout" method="get" action="/video/compare.php">
             <?php
                 echo "<input type=\"hidden\" name=\"tests\" value=\"" . htmlspecialchars($_REQUEST['tests']) . "\">\n";
             ?>
                 <table id="layoutTable">
-                    <tr><th>Thumbnail Size</th><th>Thumbnail Interval</th><th>Comparison End Point</th></th></tr>
+                    <tr><th>Thumbnail Size</th><th>Thumbnail Interval</th><th>Comparison Endpoint</th></th></tr>
                     <?php
                         // fill in the thumbnail size selection
                         echo "<tr><td>";
@@ -570,7 +597,7 @@ function ScreenShotTable()
                         echo "<input type=\"radio\" name=\"ival\" value=\"5000\"$checked onclick=\"this.form.submit();\"> 5 sec<br>";
                         echo "</td>";
 
-                        // fill in the end-point selection
+                        // fill in the endpoint selection
                         echo "<td>";
                         if( !strcasecmp($endTime, 'aft') )
                             $endTime = 'visual';
@@ -599,11 +626,11 @@ function ScreenShotTable()
         // display the waterfall if there is only one test
         $end_seconds = $filmstrip_end_time / 1000;
         if( count($tests) == 1 ) {
-            $data = loadPageRunData($tests[0]['path'], $tests[0]['run'], $tests[0]['cached']);
-            $secure = false;
-            $haveLocations = false;
-            $requests = getRequests($tests[0]['id'], $tests[0]['path'], $tests[0]['run'], $tests[0]['cached'], $secure, $haveLocations, true, true);
-            InsertWaterfall('', $requests, $tests[0]['id'], $tests[0]['run'], $tests[0]['cached'], $data, "&max=$end_seconds&mime=1&state=1&cpu=1&bw=1" );
+            /* @var TestStepResult $stepResult */
+            $stepResult = $tests[0]["stepResult"];
+            $requests = $stepResult->getRequestsWithInfo(true, true)->getRequests();
+            echo CreateWaterfallHtml('', $requests, $tests[0]['id'], $tests[0]['run'], $tests[0]['cached'], $stepResult->getRawResults(),
+                                     "&max=$end_seconds&mime=1&state=1&cpu=1&bw=1", $tests[0]['step']);
             echo '<br><br>';
         } else {
           $waterfalls = array();
@@ -611,6 +638,7 @@ function ScreenShotTable()
             $waterfalls[] = array('id' => $test['id'],
                                   'label' => $test['name'],
                                   'run' => $test['run'],
+                                  'step' => $test['step'],
                                   'cached' => $test['cached']);
           }
           $labels='';
@@ -629,6 +657,7 @@ function ScreenShotTable()
             <tr><td>Custom label</td><td>-l:&lt;label&gt;</td><td>110606_MJ_RZEY-l:Original</td></tr>
             <tr><td>Specific run</td><td>-r:&lt;run&gt;</td><td>110606_MJ_RZEY-r:3</td></tr>
             <tr><td>Repeat view</td><td>-c:1</td><td>110606_MJ_RZEY-c:1</td></tr>
+            <tr><td>Specific step</td><td>-s:3</td><td>110606_MJ_RZEY-s:3</td></tr>
             <tr><td>Specific End Time</td><td>-e:&lt;seconds&gt;</td><td>110606_MJ_RZEY-e:1.1</td></tr>
             </table>
             <br>
@@ -636,13 +665,16 @@ function ScreenShotTable()
             <p>Examples:</p>
             <ul>
             <li><b>Customizing labels:</b>
-            http://www.webpagetest.org/video/compare.php?tests=110606_MJ_RZEY-l:Original,110606_AE_RZN5-l:No+JS</li>
+            https://www.webpagetest.org/video/compare.php?tests=110606_MJ_RZEY-l:Original,110606_AE_RZN5-l:No+JS</li>
             <li><b>Compare First vs. Repeat view:</b>
-            http://www.webpagetest.org/video/compare.php?tests=110606_MJ_RZEY, 110606_MJ_RZEY-c:1</li>
+            https://www.webpagetest.org/video/compare.php?tests=110606_MJ_RZEY, 110606_MJ_RZEY-c:1</li>
+            <li><b>Second step of first run vs. Second step of second run:</b>
+            https://www.webpagetest.org/video/compare.php?tests=110606_MJ_RZEY-r:1-s:2,110606_MJ_RZEY-r:2-s:2</li>
             <li><b>White background with black text:</b>
-            http://www.webpagetest.org/video/compare.php?tests=110606_MJ_RZEY, 110606_MJ_RZEY-c:1&bg=ffffff&text=000000</li>
+            https://www.webpagetest.org/video/compare.php?tests=110606_MJ_RZEY, 110606_MJ_RZEY-c:1&bg=ffffff&text=000000</li>
             </ul>
             <input id="advanced-ok" type=button class="simplemodal-close" value="OK">
+        </div>
         </div>
         <?php
         } // EMBED
@@ -650,7 +682,7 @@ function ScreenShotTable()
         $scrollPos = $firstFrame * ($maxThumbWidth + 6);
         ?>
         <script language="javascript">
-            var thumbWidth = <?php echo "$maxThumbWidth;"; ?>
+            var thumbWidth = <?php echo "$maxThumbWidth + 4;"; ?>
             var scrollPos = <?php echo "$scrollPos;"; ?>
             document.getElementById("videoDiv").scrollLeft = scrollPos;
         </script>
@@ -706,7 +738,7 @@ function DisplayGraphs() {
     global $tests;
     global $filmstrip_end_frame;
     require_once('breakdown.inc');
-    $mimeTypes = array('html', 'js', 'css', 'image', 'flash', 'font', 'other');
+    $mimeTypes = array('html', 'js', 'css', 'image', 'flash', 'font','video', 'other');
     $timeMetrics = array('visualComplete' => 'Visually Complete',
                         'lastVisualChange' => 'Last Visual Change',
                         'docTime' => 'Load Time (onload)',
@@ -718,10 +750,54 @@ function DisplayGraphs() {
                         'render' => 'Time to Start Render',
                         'fullyLoadedCPUms' => 'CPU Busy Time');
     $progress_end = 0;
-    $testCount = count($tests);
     foreach($tests as &$test) {
-        $requests;
-        $test['breakdown'] = getBreakdown($test['id'], $test['path'], $test['run'], $test['cached'], $requests);
+        $hasStepResult = array_key_exists('stepResult', $test) && is_a($test['stepResult'], "TestStepResult");
+        if ($hasStepResult &&
+            !empty($test['stepResult']->getMetric('heroElements'))) {
+            foreach ($test['stepResult']->getMetric('heroElements') as $hero) {
+                $heroKey = "heroElementTimes.{$hero['name']}";
+
+                if (!isset($timeMetrics[$heroKey])) {
+                    $timeMetrics[$heroKey] = "Hero {$hero['name']}";
+                }
+            }
+        }
+        if ($hasStepResult &&
+            !isset($timeMetrics['visualComplete85']) &&
+            $test['stepResult']->getMetric('visualComplete85') > 0) {
+            $timeMetrics['visualComplete85'] = "85% Visually Complete";
+        }
+        if ($hasStepResult &&
+            !isset($timeMetrics['visualComplete90']) &&
+            $test['stepResult']->getMetric('visualComplete90') > 0) {
+            $timeMetrics['visualComplete90'] = "90% Visually Complete";
+        }
+        if ($hasStepResult &&
+            !isset($timeMetrics['visualComplete95']) &&
+            $test['stepResult']->getMetric('visualComplete95') > 0) {
+            $timeMetrics['visualComplete95'] = "95% Visually Complete";
+        }
+        if ($hasStepResult &&
+            !isset($timeMetrics['visualComplete99']) &&
+            $test['stepResult']->getMetric('visualComplete99') > 0) {
+            $timeMetrics['visualComplete99'] = "99% Visually Complete";
+        }
+        if ($hasStepResult &&
+            !isset($timeMetrics['chromeUserTiming.firstContentfulPaint']) &&
+            $test['stepResult']->getMetric('chromeUserTiming.firstContentfulPaint') > 0) {
+            $timeMetrics['chromeUserTiming.firstContentfulPaint'] = "First Contentful Paint";
+        }
+        if ($hasStepResult &&
+            !isset($timeMetrics['chromeUserTiming.firstMeaningfulPaint']) &&
+            $test['stepResult']->getMetric('chromeUserTiming.firstMeaningfulPaint') > 0) {
+            $timeMetrics['chromeUserTiming.firstMeaningfulPaint'] = "First Meaningful Paint";
+        }
+        if ($hasStepResult &&
+            !isset($timeMetrics['TimeToInteractive']) &&
+            $test['stepResult']->getMetric('TimeToInteractive') > 0) {
+            $timeMetrics['TimeToInteractive'] = "Time To Interactive";
+        }
+        $test['breakdown'] = $hasStepResult ? $test['stepResult']->getMimeTypeBreakdown() : array();
         if (array_key_exists('progress', $test['video'])
             && array_key_exists('frames', $test['video']['progress'])) {
             foreach ($test['video']['progress']['frames'] as $ms => &$data) {
@@ -741,15 +817,17 @@ function DisplayGraphs() {
       echo '<div id="compare_requests" class="compare-graph"></div>';
       echo '<div id="compare_bytes" class="compare-graph"></div>';
     } else {
-      foreach($timeMetrics as $metric => $label)
-        echo "<div id=\"compare_times_$metric\" class=\"compare-graph\"></div>";
+      foreach($timeMetrics as $metric => $label) {
+        $metricKey = str_replace('.', '', $metric);
+        echo "<div id=\"compare_times_$metricKey\" class=\"compare-graph\"></div>";
+      }
       foreach($mimeTypes as $type) {
         echo "<div id=\"compare_requests_$type\" class=\"compare-graph\"></div>";
         echo "<div id=\"compare_bytes_$type\" class=\"compare-graph\"></div>";
       }
     }
     ?>
-    <script type="text/javascript" src="<?php echo $GLOBALS['ptotocol']; ?>://www.google.com/jsapi"></script>
+    <script type="text/javascript" src="//www.google.com/jsapi"></script>
     <script type="text/javascript">
         google.load('visualization', '1', {'packages':['table', 'corechart']});
         google.setOnLoadCallback(drawCharts);
@@ -808,39 +886,31 @@ function DisplayGraphs() {
                 echo "dataTimes.setValue($row, 0, '$label');\n";
                 $column = 1;
                 foreach($tests as &$test) {
-                    if (array_key_exists('pageData', $test) &&
-                        array_key_exists('run', $test) &&
-                        array_key_exists($test['run'], $test['pageData']) &&
-                        array_key_exists('cached', $test) &&
-                        array_key_exists($test['cached'], $test['pageData'][$test['run']]) &&
-                        array_key_exists($metric, $test['pageData'][$test['run']][$test['cached']]) &&
-                        strlen($test['pageData'][$test['run']][$test['cached']][$metric]))
-                      echo "dataTimes.setValue($row, $column, {$test['pageData'][$test['run']][$test['cached']][$metric]});\n";
+                    $hasStepResult = array_key_exists('stepResult', $test) && is_a($test['stepResult'], "TestStepResult");
+                    if ($hasStepResult && $test['stepResult']->getMetric($metric) !== null)
+                      echo "dataTimes.setValue($row, $column, {$test['stepResult']->getMetric($metric)});\n";
                     $column++;
                 }
                 $row++;
             }
             $row = 0;
             foreach($timeMetrics as $metric => $label) {
-              echo "var dataTimes$metric = new google.visualization.DataView(dataTimes);\n";
-              echo "dataTimes$metric.setRows($row, $row);\n";
+              $metricKey = str_replace('.', '', $metric);
+              echo "var dataTimes$metricKey = new google.visualization.DataView(dataTimes);\n";
+              echo "dataTimes$metricKey.setRows($row, $row);\n";
               $row++;
             }
             echo "dataRequests.setValue(0, 0, 'Total');\n";
             echo "dataBytes.setValue(0, 0, 'Total');\n";
             $column = 1;
             foreach($tests as &$test) {
-                if (array_key_exists('pageData', $test) &&
-                    array_key_exists('run', $test) &&
-                    array_key_exists($test['run'], $test['pageData']) &&
-                    array_key_exists('cached', $test) &&
-                    array_key_exists($test['cached'], $test['pageData'][$test['run']])) {
-                    if (array_key_exists('requests', $test['pageData'][$test['run']][$test['cached']]) &&
-                        strlen($test['pageData'][$test['run']][$test['cached']]['requests']))
-                        echo "dataRequests.setValue(0, $column, {$test['pageData'][$test['run']][$test['cached']]['requests']});\n";
-                    if (array_key_exists('bytesIn', $test['pageData'][$test['run']][$test['cached']]) &&
-                        strlen($test['pageData'][$test['run']][$test['cached']]['bytesIn']))
-                        echo "dataBytes.setValue(0, $column, {$test['pageData'][$test['run']][$test['cached']]['bytesIn']});\n";
+                if (array_key_exists('stepResult', $test) && is_a($test['stepResult'], "TestStepResult")) {
+                    $requests = $test['stepResult']->getMetric('requests');
+                    if ($requests !== null)
+                        echo "dataRequests.setValue(0, $column, $requests);\n";
+                    $bytesIn = $test['stepResult']->getMetric('bytesIn');
+                    if ($bytesIn !== null)
+                        echo "dataBytes.setValue(0, $column, $bytesIn);\n";
                 }
                 $column++;
             }
@@ -869,27 +939,44 @@ function DisplayGraphs() {
                 echo "progressChart.draw(dataProgress, {title: 'Visual Progress (%)', hAxis: {title: 'Time (seconds)'}});\n";
             }
             if (count($tests) <= 4) {
-              echo "var timesChart = new google.visualization.ColumnChart(document.getElementById('compare_times'));\n";
+              echo "var timesChart = new google.visualization.BarChart(document.getElementById('compare_times'));\n";
               echo "timesChart.draw(dataTimes, {title: 'Timings (ms)'});\n";
-              echo "var requestsChart = new google.visualization.ColumnChart(document.getElementById('compare_requests'));\n";
+              echo "var requestsChart = new google.visualization.BarChart(document.getElementById('compare_requests'));\n";
               echo "requestsChart.draw(dataRequests, {title: 'Requests'});\n";
-              echo "var bytesChart = new google.visualization.ColumnChart(document.getElementById('compare_bytes'));\n";
+              echo "var bytesChart = new google.visualization.BarChart(document.getElementById('compare_bytes'));\n";
               echo "bytesChart.draw(dataBytes, {title: 'Bytes'});\n";
             } else {
               foreach($timeMetrics as $metric => $label) {
-                echo "var timesChart$metric = new google.visualization.ColumnChart(document.getElementById('compare_times_$metric'));\n";
-                echo "timesChart$metric.draw(dataTimes$metric, {title: '$label (ms)'});\n";
+                $metricKey = str_replace('.', '', $metric);
+                echo "var timesChart$metricKey = new google.visualization.BarChart(document.getElementById('compare_times_$metricKey'));\n";
+                echo "timesChart$metricKey.draw(dataTimes$metricKey, {title: '$label (ms)'});\n";
               }
               foreach($mimeTypes as $type) {
-                echo "var requestsChart$type = new google.visualization.ColumnChart(document.getElementById('compare_requests_$type'));\n";
+                echo "var requestsChart$type = new google.visualization.BarChart(document.getElementById('compare_requests_$type'));\n";
                 echo "requestsChart$type.draw(dataRequests$type, {title: '$type Requests'});\n";
-                echo "var bytesChart$type = new google.visualization.ColumnChart(document.getElementById('compare_bytes_$type'));\n";
+                echo "var bytesChart$type = new google.visualization.BarChart(document.getElementById('compare_bytes_$type'));\n";
                 echo "bytesChart$type.draw(dataBytes$type, {title: '$type Bytes'});\n";
               }
             }
             ?>
         }
     </script>
+    <?php
+    if (array_key_exists('sticky', $_GET) && strlen($_GET['sticky'])) {
+    ?>
+        <script>
+          var videoContainer = document.querySelector("#videoContainer");
+          var waterfallSliders = document.querySelector(".waterfall-sliders");
+
+          console.log(videoContainer);
+          console.log(waterfallSliders);
+          console.log(videoContainer.offsetHeight);
+
+          waterfallSliders.style.top = videoContainer.offsetHeight.toString() + "px";
+        </script>
+    <?php
+    }
+    ?>
     <?php
 }
 ?>

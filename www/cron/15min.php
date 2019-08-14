@@ -10,10 +10,12 @@ $lock = Lock("cron-15", false, 1200);
 if (!isset($lock))
   exit(0);
 
-// Update the safe browsing black list
-SBL_Update();
+header("Content-type: text/plain");
+header("Cache-Control: no-cache, must-revalidate");
+header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
 
 // update the feeds
+echo "Updating Feeds\n";
 require_once('updateFeeds.php');
 UpdateFeeds();
 ?>

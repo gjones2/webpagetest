@@ -25,7 +25,7 @@ if( isset($test['test']) )
             {
                 if( CancelTest($testData['id']) )
                     $count++;
-                    
+
                 foreach( $testData['v'] as $variationIndex => $variationId )
                 {
                     if( CancelTest($variationId) )
@@ -40,21 +40,22 @@ if( isset($test['test']) )
         if( CancelTest($id) )
             echo '<h3 align="center">Test cancelled!</h3>';
         else
-          echo '<h3>Sorry, the test could not be cancelled.  It may have already started or been cancelled</h3>';
+          echo '<h3>Sorry, the test could not be cancelled.  It might have already started or been cancelled</h3>';
     }
     echo '<form><input type="button" value="Back" onClick="history.go(-1);return true;"> </form>';
 }
 
 /**
 * Cancel and individual test
-* 
+*
 * @param mixed $id
+* @return bool
 */
 function CancelTest($id)
 {
+  $cancelled = false;
   $lock = LockTest($id);
   if ($lock) {
-    $cancelled = false;
     $testInfo = GetTestInfo($id);
     if ($testInfo && !array_key_exists('started', $testInfo)) {
       $testInfo['cancelled'] = time();
@@ -65,8 +66,10 @@ function CancelTest($id)
         $ext = 'url';
         if( $testInfo['priority'] )
             $ext = "p{$testInfo['priority']}";
-        $queued_job_file = $testInfo['workdir'] . "/$id.$ext";
-        $cancelled = unlink($queued_job_file);
+        $file_to_search = $testInfo['workdir'] . "/*.$id.$ext";
+        $found_files = glob($file_to_search);
+        if (1 === count($found_files))
+          $cancelled = @unlink($found_files[0]);
       }
     }
     UnlockTest($lock);

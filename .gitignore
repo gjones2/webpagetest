@@ -54,3 +54,41 @@ agent/js/5c2.sh
 
 # specific wptdriver settings
 agent/wptdriver/*.ini
+/agent/webdriver/data
+/agent/webdriver/test.json
+/www/installers/browsers/chrome-update-origin.dat
+/www/installers/browsers/chrome-update2.dat
+/www/installers/browsers/chrome2.dat
+/www/installers/browsers/firefox-origin.dat
+/www/installers/browsers/firefox2.dat
+/www/installers/python/ujson/ujson.pyd
+/www/installers/python/ujson/ujson.zip
+/www/installers/software2.dat
+/www/amp.html
+/www/apc/apc.php
+/www/settings/custom_metrics/Images.js
+/www/settings/custom_metrics/Resolution.js
+/www/settings/custom_metrics/Colordepth.js
+/www/settings/custom_metrics/Dpi.js
+/www/work/chrome
+agent/js/device_status_android.json
+webpagetest.VC.db
+agent/js/agent.bat
+agent/js/src/.vscode/launch.json
+agent/webdriver/.vscode/launch.json
+agent/webdriver/out/1_metrics.json.gz
+agent/webdriver/out/1_page_data.json.gz
+agent/webdriver/out/1_progress.csv.gz
+agent/webdriver/out/1_requests.json.gz
+agent/webdriver/out/1_screen.jpg
+agent/webdriver/out/1_timed_events.json.gz
+agent/webdriver/out/1.0.histograms.json.gz
+agent/wptdriver/Registry.pol
+www/gce.php
+
+# docker 
+docker/local/results/*
+!docker/local/results/.gitkeep
+
+# intellij
+*.iml

@@ -3,7 +3,7 @@ include 'common.inc';
 $body = null;
 $body_id = null;
 if (isset($_GET['bodyid'])) {
-  $body_id = $_GET['bodyid'];
+  $body_id = trim($_GET['bodyid']);
 } elseif (isset($_GET['request'])) {
   $request = (int)$_GET['request'];
 } elseif (isset($_GET['url'])) {
@@ -13,8 +13,7 @@ if (isset($_GET['bodyid'])) {
     $url = 'http://' . $url;
   require_once('object_detail.inc');
   $secure = false;
-  $haveLocations = false;
-  $requests = getRequests($id, $testPath, $run, $cached, $secure, $haveLocations, false, true);
+  $requests = getRequests($id, $testPath, $run, $cached, $secure, true);
   foreach( $requests as &$r ) {
     if ($r['full_url'] == $url) {
       $request = $r['number'];
@@ -25,7 +24,11 @@ if (isset($_GET['bodyid'])) {
 
 // get the actual body
 if ($request || $body_id) {
-  $bodies_file = $testPath . '/' . $run . $cachedText . '_bodies.zip';
+  $step = "";
+  if (isset($_GET['step'])) {
+    $step = "_" . trim($_GET['step']);
+  }
+  $bodies_file = $testPath . '/' . $run . $cachedText . $step . '_bodies.zip';
   if (is_file($bodies_file)) {
     $zip = new ZipArchive;
     if ($zip->open($bodies_file) === TRUE) {
@@ -33,8 +36,8 @@ if ($request || $body_id) {
         $name = $zip->getNameIndex($i);
         $parts = explode('-', $name);
         if (isset($body_id)) {
-          $id = intval($parts[1], 10);
-          if ($id == $body_id) {
+          $id = trim($parts[1]);
+          if (!strcmp($id, $body_id)) {
             $body = $zip->getFromIndex($i);
             break;
           }

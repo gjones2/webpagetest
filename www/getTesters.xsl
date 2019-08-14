@@ -34,10 +34,8 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
             <th>CPU Utilization</th>
             <th>Error Rate</th>
             <th>Free Disk (GB)</th>
+            <th>uptime (minutes)</th>
             <th>Screen Size</th>
-            <th>IE Version</th>
-            <th>Windows Version</th>
-            <th>GPU?</th>
             <th>IP</th>
             <th>DNS Server(s)</th>
           </tr>
@@ -53,10 +51,8 @@ xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
                 <td><xsl:value-of select="cpu"/></td>
                 <td><xsl:value-of select="errors"/></td>
                 <td><xsl:value-of select="freedisk"/></td>
+                <td><xsl:value-of select="upminutes"/></td>
                 <td><xsl:if test="string-length(screenwidth)!=0 and string-length(screenheight)!=0"><xsl:value-of select="screenwidth"/>x<xsl:value-of select="screenheight"/></xsl:if></td>
-                <td><xsl:value-of select="ie"/></td>
-                <td><xsl:value-of select="winver"/></td>
-                <td><xsl:value-of select="GPU"/></td>
                 <td><xsl:value-of select="ip"/></td>
                 <td><xsl:value-of select="dns"/></td>
               </tr>

@@ -75,9 +75,17 @@ class UrlGeneratorTest extends PHPUnit_Framework_TestCase {
     $this->assertEquals($expectedCached . "?param=value", $ug->resultPage("details", "param=value"));
   }
 
+  public function testResultPageFriendlyUrlWithRelayId() {
+    $expected = "https://test/result/qwerty/3/details/";
+
+    $ug = UrlGenerator::create(true, "https://test/", "ab3cdef1.qwerty", 3, false);
+    $this->assertEquals($expected, $ug->resultPage("details"));
+  }
+
   public function testResultPageFriendlyUrlWithStep() {
-    $expected = "https://test/result/qwerty/3/details/2/";
-    $expectedCached = "https://test/result/qwerty/3/details/cached/2/";
+    // step should actually be in the URL
+    $expected = "https://test/result/qwerty/3/details/";
+    $expectedCached = "https://test/result/qwerty/3/details/cached/";
 
     $ug = UrlGenerator::create(true, "https://test/", "qwerty", 3, false, 2);
     $this->assertEquals($expected, $ug->resultPage("details"));
@@ -86,6 +94,19 @@ class UrlGeneratorTest extends PHPUnit_Framework_TestCase {
     $this->assertEquals($expectedCached, $ug->resultPage("details"));
 
     $this->assertEquals($expectedCached . "?param=value", $ug->resultPage("details", "param=value"));
+  }
+
+  public function testStepDetailPage() {
+    $expected = "https://test/stepDetail.php?test=qwerty&run=3&step=2";
+    $expectedCached = "https://test/stepDetail.php?test=qwerty&run=3&cached=1&step=2";
+
+    $ug = UrlGenerator::create(false, "https://test/", "qwerty", 3, false, 2);
+    $this->assertEquals($expected, $ug->resultPage("stepDetail"));
+
+    $ug = UrlGenerator::create(false, "https://test/", "qwerty", 3, true, 2);
+    $this->assertEquals($expectedCached, $ug->resultPage("stepDetail"));
+
+    $this->assertEquals($expectedCached . "&param=value", $ug->resultPage("stepDetail", "param=value"));
   }
 
   public function testThumbStandardUrl() {
@@ -118,6 +139,13 @@ class UrlGeneratorTest extends PHPUnit_Framework_TestCase {
     $this->assertEquals($expected, $ug->thumbnail("screen.jpg"));
 
     $ug = UrlGenerator::create(true, "https://test/", "qwerty", 3, true);
+    $this->assertEquals($expectedCached, $ug->thumbnail("screen.jpg"));
+  }
+
+  public function testThumbFriendlyUrlWithRelay() {
+    $expectedCached = "https://test/result/qwerty/3_Cached_screen_thumb.jpg";
+
+    $ug = UrlGenerator::create(true, "https://test/", "ab4cd2ef.qwerty", 3, true);
     $this->assertEquals($expectedCached, $ug->thumbnail("screen.jpg"));
   }
 
@@ -154,6 +182,13 @@ class UrlGeneratorTest extends PHPUnit_Framework_TestCase {
     $this->assertEquals($expectedCached, $ug->generatedImage("waterfall"));
   }
 
+  public function testGeneratedImageFriendlyUrlWithRelay() {
+    $expected = "https://test/results/16/06/09/a7/b8/3_waterfall.png";
+
+    $ug = UrlGenerator::create(true, "https://test/", "2abcdfefe2131.160609_a7_b8", 3, false, 1);
+    $this->assertEquals($expected, $ug->generatedImage("waterfall"));
+  }
+
   public function testGeneratedImageFriendlyUrlWithStep() {
     $expected = "https://test/results/16/06/09/a7/b8/3_2_waterfall.png";
     $expectedCached = "https://test/results/16/06/09/a7/b8/3_Cached_2_waterfall.png";
@@ -170,6 +205,12 @@ class UrlGeneratorTest extends PHPUnit_Framework_TestCase {
     $ug = UrlGenerator::create(true, "https://test/", "160609_a7_b8", 3, true, 2);
     $this->assertEquals($expected, $ug->resultSummary());
     $this->assertEquals($expected . "?param=value", $ug->resultSummary("param=value"));
+  }
+
+  public function testResultSummaryFriendlyUrlWithRelay() {
+    $expected = "https://test/result/160609_a7_b8/";
+    $ug = UrlGenerator::create(true, "https://test/", "213jbk21j132.160609_a7_b8", 3, true, 2);
+    $this->assertEquals($expected, $ug->resultSummary());
   }
 
   public function testResultSummaryStandardUrl() {
@@ -198,9 +239,27 @@ class UrlGeneratorTest extends PHPUnit_Framework_TestCase {
   }
 
   public function testCreateVideoUrlMultistep() {
-    $expected = "https://test/video/create.php?tests=160609_a7_b8-r:3-c:1-s:2&id=160609_a7_b8.3.1.2";
+    $expected = "https://test/video/create.php?tests=160609_a7_b8-r:3-c:1-p:2&id=160609_a7_b8.3.1.2";
     $ug = UrlGenerator::create(false, "https://test/", "160609_a7_b8", 3, true, 2);
     $this->assertEquals($expected, $ug->createVideo());
+  }
+
+  public function testCreateVideoUrlMultistepWithEnd() {
+    $expected = "https://test/video/create.php?tests=160609_a7_b8-r:3-c:1-p:2-e:400&id=160609_a7_b8.3.1.2-e400";
+    $ug = UrlGenerator::create(false, "https://test/", "160609_a7_b8", 3, true, 2);
+    $this->assertEquals($expected, $ug->createVideo(400));
+  }
+
+  public function filmstripViewUrlSinglestep() {
+    $expected = "https://test/video/compare.php?tests=160609_a7_b8-r:3-c:1";
+    $ug = UrlGenerator::create(false, "https://test/", "160609_a7_b8", 3, true, 1);
+    $this->assertEquals($expected, $ug->createVideo());
+  }
+
+  public function filmstripViewUrlMultistepWithEnd() {
+    $expected = "https://test/video/compare.php?tests=160609_a7_b8-r:3-c:1-s:2-e:400";
+    $ug = UrlGenerator::create(false, "https://test/", "160609_a7_b8", 3, true, 2);
+    $this->assertEquals($expected, $ug->createVideo(400));
   }
 
   public function testDownloadVideoFrames() {
@@ -208,4 +267,41 @@ class UrlGeneratorTest extends PHPUnit_Framework_TestCase {
     $ug = UrlGenerator::create(false, "https://test/", "160609_a7_b8", 3, true, 2);
     $this->assertEquals($expected, $ug->downloadVideoFrames());
   }
+
+  public function testWaterfallImageFriendly() {
+    $expected = "https://test/waterfall.png?test=TEST_ID&run=3&cached=1&step=2&width=90&type=connection&mime=1";
+    $ug = UrlGenerator::create(true, "https://test/", "TEST_ID", 3, true, 2);
+    $this->assertEquals($expected, $ug->waterfallImage(true, 90, true));
+  }
+
+  public function testWaterfallImageStandard() {
+    $expected = "https://test/waterfall.php?test=TEST_ID&run=3&cached=1&step=2&width=90&type=connection&mime=1";
+    $ug = UrlGenerator::create(false, "https://test/", "TEST_ID", 3, true, 2);
+    $this->assertEquals($expected, $ug->waterfallImage(true, 90, true));
+  }
+
+  public function testOptimizationChecklistImageFriendly() {
+    $expected = "https://test/results/16/08/10/AB/CDE/3_Cached_2_optimization.png";
+    $ug = UrlGenerator::create(true, "https://test/", "160810_AB_CDE", 3, true, 2);
+    $this->assertEquals($expected, $ug->optimizationChecklistImage());
+  }
+
+  public function testOptimizationChecklistImageFriendlyWithRelay() {
+    $expected = "https://test/results/16/08/10/AB/CDE/3_Cached_2_optimization.png";
+    $ug = UrlGenerator::create(true, "https://test/", "3242nklk234nl.160810_AB_CDE", 3, true, 2);
+    $this->assertEquals($expected, $ug->optimizationChecklistImage());
+  }
+
+  public function testOptimizationChecklistImageStandard() {
+    $expected = "https://test/optimizationChecklist.php?test=160810_AB_CDE&run=3&cached=1&step=2";
+    $ug = UrlGenerator::create(false, "https://test/", "160810_AB_CDE", 3, true, 2);
+    $this->assertEquals($expected, $ug->optimizationChecklistImage());
+  }
+
+  public function testVideoFramesThumbnail() {
+    $expected = "https://test/thumbnail.php?test=160609_a7_b8&fit=1234&file=video_3_cached_2/myframe.png";
+    $ug = UrlGenerator::create(false, "https://test/", "160609_a7_b8", 3, true, 2);
+    $this->assertEquals($expected, $ug->videoFrameThumbnail("myframe.png", 1234));
+  }
+
 }
